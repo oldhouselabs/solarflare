@@ -23,7 +23,7 @@
     </a>
     <br />
     <p align="center">
-    <a alt="Request Feature" href="https://discord.com/channels/1263999921871126528/1264281207785652345">Request Feature</a>
+    <a alt="Request Feature" href="https://discord.com/channels/1263999921871126528/1263999921871126531">Request Feature</a>
     &middot;
     <a alt="Report Bug" href="https://discord.com/channels/1263999921871126528/1264281148322877450">Report Bug</a>
     </p>
