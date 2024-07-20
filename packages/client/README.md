@@ -45,7 +45,7 @@ The **Solarflare Typescript Client** is a fully-typed client you can use from yo
 import { useTable } from '@solarflare/client'
 
 const Todos = () => {
-    const { data, loading } = useTable("todos") // <- fully-typed API
+    const { data, isLoading } = useTable("todos") // <- fully-typed API
 
     return (
         <div>
