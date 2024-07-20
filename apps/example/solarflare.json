@@ -1,0 +1,12 @@
+{
+  "tables": [
+    {
+      "name": "employees",
+      "rls": "user_id"
+    }
+  ],
+  "auth": {
+    "type": "jwt",
+    "claim": "sub"
+  }
+}

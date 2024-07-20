@@ -1,0 +1,4 @@
+src/
+*.ts
+node_modules/
+.env
