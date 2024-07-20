@@ -73,10 +73,6 @@ export class Solarflare<DB> {
   constructor(solarflare_url: string, jwt: string) {
     this.#socket = io(solarflare_url, {
       transports: ["websocket"],
-      reconnectionDelayMax: 10000,
-      auth: {
-        token: "123",
-      },
     });
     this.#jwt = jwt;
 
@@ -111,9 +107,7 @@ export class Solarflare<DB> {
       notify();
     });
 
-    this.#socket.on("change", (msg: Change) => {
-      this.handleChange(msg);
-    });
+    this.#socket.on("change", this.handleChange.bind(this));
   }
 
   setJwt(jwt: string) {

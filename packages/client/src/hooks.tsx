@@ -42,27 +42,33 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
   const useTable = <KInput extends K>(
     tableName: KInput
   ): UseTable<DB[KInput]> => {
-    const sf = useContext(Context);
-
     const rerender = useRerender();
 
-    if (sf === undefined) {
-      throw new Error(
-        "Solarflare client not instantiated. Do you need to wrap your app in a Solarflare provider?"
-      );
-    }
+    const sf = useContext(Context);
+    const tableEntry = sf?.tables.get(tableName);
 
-    const tableEntry = sf.tables.get(tableName);
+    useEffect(() => {
+      if (sf === undefined) {
+        throw new Error(
+          "Solarflare context not found. Do you need to wrap your app in a Solarflare provider?"
+        );
+      }
 
-    if (tableEntry === undefined || tableEntry.status === "loading") {
-      sf.subscribe(tableName, rerender);
-      return { loading: true } as const;
-    }
+      if (tableEntry === undefined || tableEntry.status === "loading") {
+        sf.subscribe(tableName, rerender);
+      }
 
-    return {
-      loading: false,
-      data: tableEntry.table as unknown as Table<DB[KInput]>,
-    } as const;
+      return () => {
+        // TODO: unsubscribe
+      };
+    }, []);
+
+    return tableEntry?.status === "ready"
+      ? {
+          loading: false,
+          data: tableEntry.table as unknown as Table<DB[KInput]>,
+        }
+      : { loading: true };
   };
 
   return { Provider, useTable };
