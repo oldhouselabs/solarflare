@@ -3,16 +3,16 @@
 import { useTable } from "@solarflare/client";
 
 export default function Home() {
-  const employees = useTable("employees");
+  const { loading, data } = useTable("employees");
 
-  if (employees.loading) {
+  if (loading) {
     return <div>Loading</div>;
   }
 
   return (
     <div>
       <ul>
-        {[...employees.data.values()].map((employee) => (
+        {data.map((employee) => (
           <li key={employee.id}>{employee.name}</li>
         ))}
       </ul>
