@@ -19,28 +19,28 @@ export type UseTableOptions<Row> = {
   sort?: (a: Row, b: Row) => number;
 };
 
+const Context = createContext<Solarflare | undefined>(undefined);
+
+export const Provider = ({
+  jwt,
+  solarflare_url,
+  children,
+}: {
+  jwt: string;
+  solarflare_url: string;
+  children: React.ReactNode;
+}) => {
+  const sf = useRef(new Solarflare(solarflare_url, jwt));
+
+  useEffect(() => {
+    // If a new JWT is passed in, we set it on the Solarflare client instance.
+    sf.current.setJwt(jwt);
+  }, [jwt]);
+
+  return <Context.Provider value={sf.current}>{children}</Context.Provider>;
+};
+
 export const createSolarflare = <DB extends Record<string, any>>() => {
-  const Context = createContext<Solarflare | undefined>(undefined);
-
-  const Provider = ({
-    jwt,
-    solarflare_url,
-    children,
-  }: {
-    jwt: string;
-    solarflare_url: string;
-    children: React.ReactNode;
-  }) => {
-    const sf = useRef(new Solarflare(solarflare_url, jwt));
-
-    useEffect(() => {
-      // If a new JWT is passed in, we set it on the Solarflare client instance.
-      sf.current.setJwt(jwt);
-    }, [jwt]);
-
-    return <Context.Provider value={sf.current}>{children}</Context.Provider>;
-  };
-
   type K = Extract<keyof DB, string>;
 
   const useTable = <KInput extends K>(
@@ -87,5 +87,5 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
     };
   };
 
-  return { Provider, useTable };
+  return { useTable };
 };

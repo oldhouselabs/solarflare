@@ -1,4 +1,2 @@
-import type { DB } from "./db";
-import { createSolarflare } from "./solarflare";
-
-export const { Provider, useTable } = createSolarflare<DB>();
+export type { DB } from "./db"
+export { Provider, createSolarflare } from "./solarflare";

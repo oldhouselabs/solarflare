@@ -1,6 +1,8 @@
 "use client";
 
-import { useTable } from "@solarflare/client";
+import { createSolarflare, type DB } from "@solarflare/client";
+
+export const { useTable } = createSolarflare<DB>();
 
 export default function Home() {
   const { loading, data } = useTable("employees", {
