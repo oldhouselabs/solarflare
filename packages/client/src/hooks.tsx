@@ -16,6 +16,9 @@ export type UseTable<Row> =
   | { readonly isLoading: false; readonly data: Row[] };
 
 export type UseTableOptions<Row> = {
+  /**
+   * Comparison function to define a sort ordering on the table rows.
+   */
   sort?: (a: Row, b: Row) => number;
 };
 
