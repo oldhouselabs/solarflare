@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Solarflare, Table } from "./solarflare";
+import { Solarflare } from "./solarflare";
 
 /**
  * Utility hook to trigger re-renders.
@@ -14,6 +14,10 @@ export const useRerender = () => {
 export type UseTable<Row> =
   | { readonly loading: true; readonly data: undefined }
   | { readonly loading: false; readonly data: Row[] };
+
+export type UseTableOptions<Row> = {
+  sort?: (a: Row, b: Row) => number;
+};
 
 export const createSolarflare = <DB extends Record<string, any>>() => {
   const Context = createContext<Solarflare<DB> | undefined>(undefined);
@@ -40,7 +44,8 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
   type K = Extract<keyof DB, string>;
 
   const useTable = <KInput extends K>(
-    tableName: KInput
+    tableName: KInput,
+    options?: UseTableOptions<DB[KInput]>
   ): UseTable<DB[KInput]> => {
     const rerender = useRerender();
 
@@ -61,16 +66,25 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
       return () => {
         // TODO: unsubscribe
       };
-    }, []);
+    }, [tableName, tableEntry, rerender, sf]);
 
-    return tableEntry?.status === "ready"
-      ? {
-          loading: false,
-          data: Array.from(
-            tableEntry.table.values()
-          ) as unknown as DB[KInput][],
-        }
-      : { loading: true, data: undefined };
+    if (tableEntry === undefined || tableEntry?.status === "loading") {
+      return { loading: true, data: undefined };
+    }
+
+    const data = Array.from(
+      tableEntry.table.values()
+    ) as unknown as DB[KInput][];
+
+    // Perform an in-place sort of the array
+    if (options?.sort !== undefined) {
+      data.sort(options.sort);
+    }
+
+    return {
+      loading: false,
+      data,
+    };
   };
 
   return { Provider, useTable };
