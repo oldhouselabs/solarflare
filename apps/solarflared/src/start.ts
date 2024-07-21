@@ -40,18 +40,9 @@ export const start = async (): Promise<void> => {
   }
   const env = parsed.data;
 
-  const token = jwt.sign(
-    {
-      sub: 2,
-    },
-    env.JWT_SECRET_KEY
-  );
-  console.log(token);
-
   const manifest = await loadManifest();
   const liveTables = new Map(manifest.tables.map((t) => [t.name, t]));
 
-  // TODO: should be a mechanism to pool connections.
   const client = await createClient(env.DB_CONNECTION_STRING);
 
   const service = new LogicalReplicationService(

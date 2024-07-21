@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { init } from "./init";
 import { config } from "dotenv";
+
+import { init } from "./init";
 import { start } from "./start";
 import { codegen } from "./codegen";
-export * from "../../../packages/client/src/db";
 
 // Load .env file.
 config();

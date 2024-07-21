@@ -1,4 +1,4 @@
-import type { DB } from "../dist/db.d.ts";
+import type { DB } from "./db";
 import { createSolarflare } from "./solarflare";
 
 export const { Provider, useTable } = createSolarflare<DB>();

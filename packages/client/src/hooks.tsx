@@ -31,7 +31,7 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
     solarflare_url: string;
     children: React.ReactNode;
   }) => {
-    const sf = useRef(new Solarflare<DB>(solarflare_url, jwt));
+    const sf = useRef(new Solarflare(solarflare_url, jwt));
 
     useEffect(() => {
       // If a new JWT is passed in, we set it on the Solarflare client instance.
