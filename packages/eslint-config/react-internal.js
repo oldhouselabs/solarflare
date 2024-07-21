@@ -10,14 +10,23 @@ const project = resolve(process.cwd(), "tsconfig.json");
 
 /** @type {import("eslint").Linter.Config} */
 module.exports = {
-  extends: ["eslint:recommended", "prettier", "turbo"],
-  plugins: ["only-warn"],
+  parser: "@typescript-eslint/parser",
+  extends: [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended",
+    "prettier",
+    "turbo",
+  ],
+  plugins: ["react", "react-hooks", "only-warn"],
   globals: {
     React: true,
     JSX: true,
   },
   env: {
     browser: true,
+    es2021: true,
   },
   settings: {
     "import/resolver": {
