@@ -12,8 +12,8 @@ export const useRerender = () => {
 };
 
 export type UseTable<Row> =
-  | { readonly loading: true }
-  | { readonly loading: false; readonly data: Table<Row> };
+  | { readonly loading: true; readonly data: undefined }
+  | { readonly loading: false; readonly data: Row[] };
 
 export const createSolarflare = <DB extends Record<string, any>>() => {
   const Context = createContext<Solarflare<DB> | undefined>(undefined);
@@ -66,9 +66,11 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
     return tableEntry?.status === "ready"
       ? {
           loading: false,
-          data: tableEntry.table as unknown as Table<DB[KInput]>,
+          data: Array.from(
+            tableEntry.table.values()
+          ) as unknown as DB[KInput][],
         }
-      : { loading: true };
+      : { loading: true, data: undefined };
   };
 
   return { Provider, useTable };
