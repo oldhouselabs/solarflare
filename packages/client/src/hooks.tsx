@@ -20,7 +20,7 @@ export type UseTableOptions<Row> = {
 };
 
 export const createSolarflare = <DB extends Record<string, any>>() => {
-  const Context = createContext<Solarflare<DB> | undefined>(undefined);
+  const Context = createContext<Solarflare | undefined>(undefined);
 
   const Provider = ({
     jwt,

@@ -54,13 +54,13 @@ interface Pk {
   pktypes: string[];
 }
 
-export type Table<Row> = Map<string, Row>;
+export type Table<Row = any> = Map<string, Row>;
 
 type TableState =
-  | { status: "ready"; table: Table<any>; notify: () => void }
+  | { status: "ready"; table: Table; notify: () => void }
   | { status: "loading"; queryId: string; notify: () => void };
 
-export class Solarflare<DB> {
+export class Solarflare {
   #socket: Socket;
 
   /**
