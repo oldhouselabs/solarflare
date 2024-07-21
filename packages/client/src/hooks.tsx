@@ -12,8 +12,8 @@ export const useRerender = () => {
 };
 
 export type UseTable<Row> =
-  | { readonly loading: true; readonly data: undefined }
-  | { readonly loading: false; readonly data: Row[] };
+  | { readonly isLoading: true; readonly data: undefined }
+  | { readonly isLoading: false; readonly data: Row[] };
 
 export type UseTableOptions<Row> = {
   sort?: (a: Row, b: Row) => number;
@@ -69,7 +69,7 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
     }, [tableName, tableEntry, rerender, sf]);
 
     if (tableEntry === undefined || tableEntry?.status === "loading") {
-      return { loading: true, data: undefined };
+      return { isLoading: true, data: undefined };
     }
 
     const data = Array.from(
@@ -82,7 +82,7 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
     }
 
     return {
-      loading: false,
+      isLoading: false,
       data,
     };
   };
