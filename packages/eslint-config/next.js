@@ -31,5 +31,11 @@ module.exports = {
     ".*.js",
     "node_modules/",
   ],
+  rules: {
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+    ],
+  },
   overrides: [{ files: ["*.js?(x)", "*.ts?(x)"] }],
 };
