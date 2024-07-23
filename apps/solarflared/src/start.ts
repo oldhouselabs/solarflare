@@ -157,7 +157,8 @@ export const start = async (): Promise<void> => {
       }
       const rlsColumn = manifestTable.rls;
 
-      let o: any = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix
+      const o: any = {};
       switch (change.kind) {
         case "insert":
         case "update": {

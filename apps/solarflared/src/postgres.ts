@@ -104,7 +104,7 @@ export const selectAllWithRls = async (
   client: pg.Client,
   table: string,
   rlsColumn: string | false,
-  rlsKey: any
+  rlsKey: unknown
 ) => {
   if (rlsColumn === false) {
     const res = await client.query(`SELECT * FROM "${table}"`);
