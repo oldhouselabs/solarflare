@@ -218,7 +218,7 @@ export class Solarflare<
     switch (change.kind) {
       case "insert":
       case "update": {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix
         const o: any = {};
         change.columnnames.forEach((col, idx) => {
           o[col] = change.columnvalues[idx];
@@ -234,7 +234,7 @@ export class Solarflare<
       }
 
       case "delete": {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix
         const o: any = {};
         change.oldkeys?.keynames.forEach((col, idx) => {
           o[col] = change.oldkeys?.keyvalues[idx];
