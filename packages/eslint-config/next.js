@@ -6,6 +6,7 @@ const project = resolve(process.cwd(), "tsconfig.json");
 module.exports = {
   extends: [
     "eslint:recommended",
+    "plugin:eslint-comments/recommended",
     "prettier",
     require.resolve("@vercel/style-guide/eslint/next"),
     "turbo",
@@ -25,6 +26,10 @@ module.exports = {
         project,
       },
     },
+  },
+  rules: {
+    "eslint-comments/no-unused-disable": "error",
+    "eslint-comments/require-description": "error",
   },
   ignorePatterns: [
     // Ignore dotfiles
