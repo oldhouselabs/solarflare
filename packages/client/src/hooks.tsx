@@ -7,6 +7,7 @@ import {
   SlotUpdated,
   Solarflare,
 } from "./solarflare";
+import { OptimisticChange } from "./optimistic";
 
 /**
  * Utility hook to trigger re-renders.
@@ -16,9 +17,17 @@ export const useRerender = () => {
   return () => setTick((t) => t + 1);
 };
 
-export type UseTable<Row> =
-  | { readonly isLoading: true; readonly data: undefined }
-  | { readonly isLoading: false; readonly data: Row[] };
+export type UseTable<Row extends object> =
+  | {
+      readonly isLoading: true;
+      readonly data: undefined;
+      readonly optimistic: undefined;
+    }
+  | {
+      readonly isLoading: false;
+      readonly data: Row[];
+      optimistic: (change: OptimisticChange<Row>) => { rollback: () => void };
+    };
 
 export type UseTableOptions<Row> = {
   /**
@@ -81,7 +90,7 @@ export const createSolarflare = <
     }, [tableName, tableEntry, rerender, sf]);
 
     if (tableEntry === undefined || tableEntry?.status === "loading") {
-      return { isLoading: true, data: undefined };
+      return { isLoading: true, data: undefined, optimistic: undefined };
     }
 
     const data = Array.from(tableEntry.data.values())
@@ -109,9 +118,21 @@ export const createSolarflare = <
       data.sort(options.sort);
     }
 
+    const optimistic = (change: OptimisticChange<DB[KInput]>) => {
+      sf.optimistic({ ...change, table: tableName });
+
+      const rollback = () => {
+        sf.clearOverride({ table: tableName, id: change.id });
+        sf.table(tableName)?.notify();
+      };
+
+      return { rollback };
+    };
+
     return {
       isLoading: false,
       data,
+      optimistic,
     };
   };
 

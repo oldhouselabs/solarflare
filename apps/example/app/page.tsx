@@ -5,13 +5,30 @@ import { createSolarflare, type DB } from "@solarflare/client";
 const { useTable } = createSolarflare<DB>();
 
 export default function Home() {
-  const { isLoading, data } = useTable("employees", {
+  const { isLoading, data, optimistic } = useTable("employees", {
     sort: (a, b) => a.name.localeCompare(b.name),
   });
 
   if (isLoading) {
     return <div>Loading</div>;
   }
+
+  const handleClick = () => {
+    // Pretend you make a network request here.
+    // myNetworkRequest()
+
+    // Optimistically update the UI so we don't wait for the network request
+    // to see the change.
+    const { rollback } = optimistic({
+      action: "update",
+      // @ts-ignore -- TODO: fix PKs!
+      id: 10185,
+      data: { name: "Alice" },
+    });
+
+    // Pretend the network request comes back with some kind of rejection here.
+    setTimeout(() => rollback(), 2000);
+  };
 
   return (
     <div>
@@ -20,6 +37,7 @@ export default function Home() {
           <li key={employee.id}>{employee.name}</li>
         ))}
       </ul>
+      <button onClick={handleClick}>Update</button>
     </div>
   );
 }

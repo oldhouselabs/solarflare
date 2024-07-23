@@ -6,7 +6,7 @@ import { io, Socket } from "socket.io-client";
 import { v4 as uuid } from "uuid";
 
 export * from "./hooks";
-import { OptimisticChange } from "./optimistic";
+import { OptimisticChangeForTable } from "./optimistic";
 
 /**
  * A change event from Postgres.
@@ -135,7 +135,9 @@ type TableState<Row = unknown> =
   | { status: "ready"; data: Table<Row>; notify: () => void }
   | { status: "loading"; queryId: string; notify: () => void };
 
-export class Solarflare<DB extends Record<string, any> = Record<string, any>> {
+export class Solarflare<
+  DB extends Record<string, object> = Record<string, object>,
+> {
   #socket: Socket;
 
   /**
@@ -146,7 +148,6 @@ export class Solarflare<DB extends Record<string, any> = Record<string, any>> {
   tables: Map<string, TableState> = new Map();
 
   constructor(solarflare_url: string, jwt: string) {
-    console.log("Running Solarflare constructor");
     this.#socket = io(solarflare_url, {
       transports: ["websocket"],
     });
@@ -275,7 +276,7 @@ export class Solarflare<DB extends Record<string, any> = Record<string, any>> {
   }
 
   optimistic<T extends Extract<keyof DB, string> = Extract<keyof DB, string>>(
-    change: OptimisticChange<DB, T>
+    change: OptimisticChangeForTable<DB, T>
   ) {
     const table = this.table(change.table);
     if (table === undefined) {
@@ -360,6 +361,49 @@ export class Solarflare<DB extends Record<string, any> = Record<string, any>> {
       // Exhaustiveness check.
       default: {
         const _: never = change;
+      }
+    }
+  }
+
+  clearOverride({
+    table,
+    id,
+  }: {
+    table: Extract<keyof DB, string>;
+    id: string;
+  }) {
+    const localTable = this.table(table);
+    if (localTable === undefined) {
+      console.error(`clearOverride on untracked table \`${table}\``);
+      return;
+    }
+    if (localTable.status === "loading") {
+      console.error(`clearOverride on loading table \`${table}\``);
+      return;
+    }
+
+    const slot = localTable.data.get(id);
+    if (slot === undefined) {
+      console.error(`clearOverride on non-existent row \`${id}\``);
+      return;
+    }
+    switch (slot.status) {
+      case "normal": {
+        console.error(`clearOverride on normal row \`${id}\``);
+        return;
+      }
+      case "inserted": {
+        localTable.data.delete(id);
+        return;
+      }
+      case "updated":
+      case "deleted": {
+        localTable.data.set(id, { status: "normal", value: slot.value });
+        return;
+      }
+      default: {
+        // Exhaustiveness check.
+        const _: never = slot;
       }
     }
   }

@@ -1,36 +1,29 @@
-export type OptimisticInsert<
-  DB extends Record<string, unknown> = Record<string, unknown>,
-  Table extends Extract<keyof DB, string> = Extract<keyof DB, string>,
-> = {
+export type OptimisticInsert<Row extends object> = {
   action: "insert";
-  table: Table;
+  // TODO: this needs to be the PK type
   id: string;
-  data: DB[Table];
+  data: Row;
 };
 
-export type OptimisticUpdate<
-  DB extends Record<string, unknown> = Record<string, unknown>,
-  Table extends Extract<keyof DB, string> = Extract<keyof DB, string>,
-> = {
+export type OptimisticUpdate<Row extends object> = {
   action: "update";
-  table: Table;
+  // TODO: this needs to be the PK type
   id: string;
-  data: Partial<DB[Table]>;
+  data: Partial<Row>;
 };
 
-export type OptimisticDelete<
-  DB extends Record<string, unknown> = Record<string, unknown>,
-  Table extends Extract<keyof DB, string> = Extract<keyof DB, string>,
-> = {
+export type OptimisticDelete = {
   action: "delete";
-  table: Table;
+  // TODO: this needs to be the PK type
   id: string;
 };
 
-export type OptimisticChange<
-  DB extends Record<string, unknown> = Record<string, unknown>,
+export type OptimisticChange<Row extends object> =
+  | OptimisticInsert<Row>
+  | OptimisticUpdate<Row>
+  | OptimisticDelete;
+
+export type OptimisticChangeForTable<
+  DB extends Record<string, object> = Record<string, object>,
   Table extends Extract<keyof DB, string> = Extract<keyof DB, string>,
-> =
-  | OptimisticInsert<DB, Table>
-  | OptimisticUpdate<DB, Table>
-  | OptimisticDelete<DB, Table>;
+> = OptimisticChange<DB[Table]> & { table: Table };
