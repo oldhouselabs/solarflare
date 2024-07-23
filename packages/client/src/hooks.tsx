@@ -58,7 +58,7 @@ export const Provider = ({
 };
 
 export const createSolarflare = <
-  DB extends Record<string, any> = Record<string, any>,
+  DB extends Record<string, object> = Record<string, object>,
 >() => {
   type K = Extract<keyof DB, string>;
 
