@@ -22,7 +22,7 @@ interface Change {
   table: string;
   columnnames: string[];
   columntypes: string[];
-  columnvalues: any[];
+  columnvalues: unknown[];
   /**
    * +options.includePk : true
    */
@@ -46,7 +46,7 @@ interface Change {
   oldkeys?: {
     keynames: string[];
     keytypes: string[];
-    keyvalues: any[];
+    keyvalues: unknown[];
   };
 }
 
@@ -129,7 +129,7 @@ function serverValue<T>(slot: Slot<T>): T | undefined {
   const _: never = slot;
 }
 
-export type Table<Row = any> = Map<string, Slot<Row>>;
+export type Table<Row = unknown> = Map<string, Slot<Row>>;
 
 type TableState<Row = unknown> =
   | { status: "ready"; data: Table<Row>; notify: () => void }
@@ -218,6 +218,7 @@ export class Solarflare<
     switch (change.kind) {
       case "insert":
       case "update": {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const o: any = {};
         change.columnnames.forEach((col, idx) => {
           o[col] = change.columnvalues[idx];
@@ -233,6 +234,7 @@ export class Solarflare<
       }
 
       case "delete": {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const o: any = {};
         change.oldkeys?.keynames.forEach((col, idx) => {
           o[col] = change.oldkeys?.keyvalues[idx];
