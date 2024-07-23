@@ -30,6 +30,9 @@ module.exports = {
     es2021: true,
   },
   settings: {
+    react: {
+      version: "detect",
+    },
     "import/resolver": {
       typescript: {
         project,

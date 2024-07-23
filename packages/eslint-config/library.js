@@ -23,6 +23,9 @@ module.exports = {
     node: true,
   },
   settings: {
+    react: {
+      version: "detect",
+    },
     "import/resolver": {
       typescript: {
         project,
