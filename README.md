@@ -87,5 +87,5 @@ Now, if a row is added, deleted or edited in Postgres, the `Todos` component wil
 - [x] [`@solarflare/client`](https://github.com/solarflare-dev/solarflare/tree/main/packages/client) &mdash; fully-typed client for TypeScript React frontends
 - [x] Live, declarative view of your existing Postgres tables with minimal setup
 - [x] JWT-based auth for partial replication
-- [ ] Optimistic update API
+- [x] Optimistic update API
 - [ ] In-browser local persistent storage
