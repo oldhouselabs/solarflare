@@ -1,7 +1,12 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { Solarflare } from "./solarflare";
+import {
+  SlotInserted,
+  SlotNormal,
+  SlotUpdated,
+  Solarflare,
+} from "./solarflare";
 
 /**
  * Utility hook to trigger re-renders.
@@ -43,17 +48,21 @@ export const Provider = ({
   return <Context.Provider value={sf.current}>{children}</Context.Provider>;
 };
 
-export const createSolarflare = <DB extends Record<string, any>>() => {
+export const createSolarflare = <
+  DB extends Record<string, any> = Record<string, any>,
+>() => {
   type K = Extract<keyof DB, string>;
 
   const useTable = <KInput extends K>(
     tableName: KInput,
     options?: UseTableOptions<DB[KInput]>
   ): UseTable<DB[KInput]> => {
+    type V = DB[KInput];
+
     const rerender = useRerender();
 
-    const sf = useContext(Context);
-    const tableEntry = sf?.tables.get(tableName);
+    const sf = useContext(Context) as Solarflare<DB>;
+    const tableEntry = sf?.table(tableName);
 
     useEffect(() => {
       if (sf === undefined) {
@@ -75,9 +84,25 @@ export const createSolarflare = <DB extends Record<string, any>>() => {
       return { isLoading: true, data: undefined };
     }
 
-    const data = Array.from(
-      tableEntry.table.values()
-    ) as unknown as DB[KInput][];
+    const data = Array.from(tableEntry.data.values())
+      .filter(
+        (row): row is SlotNormal<V> | SlotInserted<V> | SlotUpdated<V> =>
+          row.status !== "deleted"
+      )
+      .map((row) => {
+        if (row.status === "normal") {
+          return row.value;
+        }
+        if (row.status === "updated") {
+          return row.override;
+        }
+        if (row.status === "inserted") {
+          return row.override;
+        }
+        // Exhaustiveness check.
+        const _: never = row;
+        throw new Error("Unreachable");
+      });
 
     // Perform an in-place sort of the array
     if (options?.sort !== undefined) {

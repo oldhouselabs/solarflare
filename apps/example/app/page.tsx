@@ -2,7 +2,7 @@
 
 import { createSolarflare, type DB } from "@solarflare/client";
 
-export const { useTable } = createSolarflare<DB>();
+const { useTable } = createSolarflare<DB>();
 
 export default function Home() {
   const { isLoading, data } = useTable("employees", {

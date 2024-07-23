@@ -6,6 +6,7 @@ import { io, Socket } from "socket.io-client";
 import { v4 as uuid } from "uuid";
 
 export * from "./hooks";
+import { OptimisticChange } from "./optimistic";
 
 /**
  * A change event from Postgres.
@@ -54,13 +55,87 @@ interface Pk {
   pktypes: string[];
 }
 
-export type Table<Row = any> = Map<string, Row>;
+/**
+ * Represents a slot that reflects the latest known server value, with no optimistic updates.
+ */
+export type SlotNormal<T> = {
+  status: "normal";
+  /**
+   * The latest known server value.
+   */
+  value: T;
+};
 
-type TableState =
-  | { status: "ready"; table: Table; notify: () => void }
+/**
+ * Represents a slot that has had an optimistic update.
+ */
+export type SlotUpdated<T> = {
+  status: "updated";
+  /**
+   * The latest known server value.
+   */
+  value: T;
+  /**
+   * The value after the optimistic update.
+   */
+  override: T;
+};
+
+/**
+ * Represents a slot that has been deleted.
+ */
+export type SlotDeleted<T> = {
+  status: "deleted";
+  /**
+   * The latest known server value.
+   */
+  value: T;
+};
+
+/**
+ * Represents a slot that has been inserted optimistically.
+ *
+ * Such a slot does not correspond to a server value.
+ */
+export type SlotInserted<T> = {
+  status: "inserted";
+  /**
+   * The value after the optimistic insert.
+   */
+  override: T;
+};
+
+type Slot<T> =
+  | SlotNormal<T>
+  | SlotUpdated<T>
+  | SlotDeleted<T>
+  | SlotInserted<T>;
+
+function serverValue<T>(
+  slot: SlotNormal<T> | SlotUpdated<T> | SlotDeleted<T>
+): T;
+function serverValue<T>(slot: SlotInserted<T>): undefined;
+function serverValue<T>(slot: Slot<T>): T | undefined {
+  switch (slot.status) {
+    case "normal":
+    case "updated":
+    case "deleted":
+      return slot.value;
+    case "inserted":
+      return undefined;
+  }
+
+  // Exhaustiveness check.
+  const _: never = slot;
+}
+
+export type Table<Row = any> = Map<string, Slot<Row>>;
+
+type TableState<Row = unknown> =
+  | { status: "ready"; data: Table<Row>; notify: () => void }
   | { status: "loading"; queryId: string; notify: () => void };
 
-export class Solarflare {
+export class Solarflare<DB extends Record<string, any> = Record<string, any>> {
   #socket: Socket;
 
   /**
@@ -71,6 +146,7 @@ export class Solarflare {
   tables: Map<string, TableState> = new Map();
 
   constructor(solarflare_url: string, jwt: string) {
+    console.log("Running Solarflare constructor");
     this.#socket = io(solarflare_url, {
       transports: ["websocket"],
     });
@@ -92,15 +168,16 @@ export class Solarflare {
 
       const notify = localTable.notify;
 
-      const table = new Map();
+      const data = new Map();
       for (const row of msg.data) {
-        table.set(row.id, row);
+        const slot = { status: "normal", value: row };
+        data.set(row.id, slot);
       }
 
       this.tables.set(tableName, {
         status: "ready",
+        data,
         notify,
-        table,
       });
 
       // Used to trigger re-renders in hooks that requested the data.
@@ -110,13 +187,28 @@ export class Solarflare {
     this.#socket.on("change", this.handleChange.bind(this));
   }
 
+  table<K extends Extract<keyof DB, string>>(
+    tableName: K
+  ): TableState<DB[K]> | undefined {
+    const localTable = this.tables.get(tableName);
+    if (localTable === undefined) {
+      return undefined;
+    }
+
+    if (localTable.status !== "ready") {
+      throw new Error(`table \`${tableName}\` not ready`);
+    }
+
+    return localTable as TableState<DB[K]>;
+  }
+
   setJwt(jwt: string) {
     this.#jwt = jwt;
   }
 
   handleChange(change: Change) {
     const tableName = change.table;
-    const localTable = this.tables.get(tableName);
+    const localTable = this.table(tableName as Extract<keyof DB, string>);
     if (localTable === undefined) {
       console.error(`change received on untracked table \`${tableName}\``);
       return;
@@ -134,7 +226,7 @@ export class Solarflare {
         // Need to handle PKs better.
         const id = o.id;
         if (localTable.status === "ready") {
-          localTable.table.set(id, o);
+          localTable.data.set(id, { status: "normal", value: o });
         }
         break;
       }
@@ -146,7 +238,7 @@ export class Solarflare {
         });
         const id = o.id;
         if (localTable.status === "ready") {
-          localTable.table.delete(id);
+          localTable.data.delete(id);
         }
         break;
       }
@@ -180,5 +272,95 @@ export class Solarflare {
         jwt: this.#jwt,
       })
     );
+  }
+
+  optimistic<T extends Extract<keyof DB, string> = Extract<keyof DB, string>>(
+    change: OptimisticChange<DB, T>
+  ) {
+    const table = this.table(change.table);
+    if (table === undefined) {
+      console.error(`optimistic change on untracked table \`${change.table}\``);
+      return;
+    }
+    if (table.status === "loading") {
+      console.error(`optimistic change on loading table \`${change.table}\``);
+      return;
+    }
+
+    if (table.status !== "ready") {
+      // TODO: it should probably still be possible to apply optimistic changes
+      // to a table that hasn't been loaded yet.
+      console.error(`optimistic change on table \`${change.table}\` not ready`);
+      return;
+    }
+
+    switch (change.action) {
+      case "insert": {
+        const { id, data } = change;
+
+        const row = table.data.get(id);
+        if (row !== undefined) {
+          console.error(`insert on existing row \`${id}\``);
+          return;
+        }
+        table.data.set(id, { status: "inserted", override: data });
+        table.notify();
+
+        break;
+      }
+
+      case "update": {
+        const { id, data } = change;
+
+        const row = table.data.get(id);
+        if (row === undefined) {
+          console.error(`update on non-existent row \`${id}\``);
+          return;
+        }
+        if (row.status === "deleted" || row.status === "inserted") {
+          console.error(`update on deleted row \`${id}\``);
+          return;
+        }
+
+        const value = serverValue(row);
+        table.data.set(id, {
+          status: "updated",
+          value,
+          override: { ...value, ...data },
+        });
+        table.notify();
+
+        break;
+      }
+
+      case "delete": {
+        const { id } = change;
+
+        const row = table.data.get(id);
+        if (row === undefined) {
+          console.error(`delete on non-existent row \`${id}\``);
+          return;
+        }
+        if (row.status === "deleted") {
+          console.error(`delete on already deleted row \`${id}\``);
+          return;
+        }
+        if (row.status === "inserted") {
+          // Since this was optimistically inserted, and now is optimistically
+          // deleted, we can just remove it from the table.
+          table.data.delete(id);
+        } else {
+          table.data.set(id, { status: "deleted", value: serverValue(row) });
+        }
+        table.notify();
+
+        break;
+      }
+
+      // Exhaustiveness check.
+      default: {
+        const _: never = change;
+      }
+    }
   }
 }
