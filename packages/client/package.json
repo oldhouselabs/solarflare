@@ -5,7 +5,8 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

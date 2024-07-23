@@ -5,6 +5,8 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "tywatch": "turbo typecheck -- --watch",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
