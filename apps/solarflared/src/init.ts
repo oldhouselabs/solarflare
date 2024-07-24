@@ -130,4 +130,8 @@ export const init = async () => {
 
   // Write the manifest file to solarflare.json
   await fs.writeFile(manifestFilePath, JSON.stringify(manifest, null, 2));
+
+  console.log(
+    `Successfully initialized Solarflare.\n\nsolarflare.json has been created in this directory.`
+  );
 };
