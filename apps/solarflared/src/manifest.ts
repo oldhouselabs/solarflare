@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { format } from "./zodErrors";
+import { logger } from "./logger";
 
 export const manifestSchema = z.object({
   tables: z
@@ -20,6 +21,7 @@ type Manifest = z.infer<typeof manifestSchema>;
 export const loadManifest = async (): Promise<Manifest> => {
   // Read the solarflare.json file.
   const manifestPath = path.join(process.cwd(), "solarflare.json");
+  logger.debug(`loading manifest from ${manifestPath}`);
 
   const manifestExists = await fs
     .access(manifestPath, fs.constants.F_OK)
@@ -27,10 +29,10 @@ export const loadManifest = async (): Promise<Manifest> => {
     .catch(() => false);
 
   if (!manifestExists) {
-    console.error(
+    logger.error(
       `no solarflare.json manifest file was found in this directory`
     );
-    console.error(
+    logger.error(
       `run \`solarflare init\` to initialize your project to work with Solarflare`
     );
     process.exit(1);
@@ -39,14 +41,16 @@ export const loadManifest = async (): Promise<Manifest> => {
   const rawManifest = await fs.readFile(manifestPath, {
     encoding: "utf-8",
   });
+  logger.debug(`loaded manifest: ${rawManifest}`);
 
   const parsed = await manifestSchema.safeParseAsync(JSON.parse(rawManifest));
 
   if (!parsed.success) {
-    console.error(format(parsed.error, "Invalid solarflare.json."));
+    logger.error(format(parsed.error, "Invalid solarflare.json."));
     process.exit(1);
   }
 
+  logger.debug(`parsed manifest: ${JSON.stringify(parsed.data, null, 2)}`);
   return parsed.data;
 };
 
@@ -54,9 +58,10 @@ export const validateManifestAuth = async (manifest: Manifest) => {
   // Verify that if any tables have RLS enabled, that the auth section is present.
   const tablesWithRls = manifest.tables.filter((t) => t.rls !== false);
   if (tablesWithRls.length > 0 && !manifest.auth) {
-    console.error(
+    logger.error(
       `RLS is enabled for tables ${tablesWithRls.join(", ")}, but no auth section is present in the manifest. Unable to launch server`
     );
     process.exit(1);
   }
+  logger.debug(`manifest auth settings are valid`);
 };

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { config } from "dotenv";
+import { config as loadEnv } from "dotenv";
 
 import { init } from "./init";
 import { start } from "./start";
 import { codegen } from "./codegen";
+import { logger } from "./logger";
 
 // Load .env file.
-config();
+loadEnv();
 
 // Create the program instance.
 const program = new Command();
