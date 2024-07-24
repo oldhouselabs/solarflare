@@ -1,6 +1,6 @@
 "use client";
 
-import { Provider } from "@solarflare/client";
+import { SolarflareProvider } from "@solarflare/client";
 import { useEffect, useState } from "react";
 
 export const Providers = ({ children }: { children: React.ReactNode }) => {
@@ -28,13 +28,13 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
   if (!JWT || !userId) return <></>;
 
   return (
-    <Provider
+    <SolarflareProvider
       jwt={JWT}
       // eslint-disable-next-line turbo/no-undeclared-env-vars -- Not declaring in Turbo as this is just an example repo -- Not declaring in Turbo as this is just an example repo
       solarflare_url={process.env.NEXT_PUBLIC_SOLARFLARE_URL!}
     >
       <p>User: {userId}</p>
       {children}
-    </Provider>
+    </SolarflareProvider>
   );
 };

@@ -1,2 +1,2 @@
-export type { DB } from "./db"
-export { Provider, createSolarflare } from "./solarflare";
+export type { DB } from "./db";
+export { SolarflareProvider, createSolarflare } from "./solarflare";

@@ -38,7 +38,7 @@ export type UseTableOptions<Row> = {
 
 const Context = createContext<Solarflare | undefined>(undefined);
 
-export const Provider = ({
+export const SolarflareProvider = ({
   jwt,
   solarflare_url,
   children,
