@@ -37,7 +37,8 @@ export const codegen = async () => {
     );
     process.exit(1);
   });
-  await fs.access(path.join(clientPackagePath, "dist")).catch(() => {
+  const clientPackageDistPath = path.join(clientPackagePath, "dist");
+  await fs.access(clientPackageDistPath).catch(() => {
     console.error(
       "The @solarflare/client package is present in your project, but there is no 'dist' directory. You may need to build the package."
     );
@@ -59,9 +60,11 @@ ${generated.map((g) => `  ${g.tableName}: ${g.interfaceName};`).join("\n")}
 
   const fileContent = `${generated.map((g) => g.typeDef).join("\n\n")}\n\n${dbTypedef}`;
 
-  await fs.writeFile(
-    path.join(clientPackagePath, "dist", "db.d.ts"),
-    fileContent
+  const codeGenPath = path.join(clientPackageDistPath, "db.d.ts");
+  await fs.writeFile(codeGenPath, fileContent);
+
+  console.log(
+    `Generated types for tables:\n ${manifest.tables.map((t) => ` - ${t.name}`).join(", \n")}\n\nWritten to ${codeGenPath}`
   );
 };
 
