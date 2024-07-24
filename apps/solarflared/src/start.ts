@@ -17,7 +17,7 @@ const envSchema = z.object({
   PORT: z
     .string()
     .regex(/^\d+$/, "PORT should be an integer")
-    .default("3000")
+    .default("54321")
     .transform(Number),
   JWT_SECRET_KEY: z.string(),
 });
