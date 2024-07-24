@@ -1,6 +1,7 @@
 {
   "name": "@solarflare/solarflared",
-  "version": "0.3.3",
+  "description": "Solarflare daemon. Stream real-time data to your React app from your existing Postgres database.",
+  "version": "0.3.4",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
