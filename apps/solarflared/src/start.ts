@@ -213,6 +213,13 @@ export const start = async (): Promise<void> => {
     }
   });
 
+  httpServer.on("error", (e: unknown) => {
+    if (e instanceof Error && "code" in e && e.code === "EADDRINUSE") {
+      console.error(e.message);
+      process.exit(1);
+    }
+  });
+
   // Start the websocket server.
   httpServer.listen(env.PORT, () => {
     console.log(`✅ listening on port ${env.PORT}`);
