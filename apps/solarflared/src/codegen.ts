@@ -23,6 +23,27 @@ export const codegen = async () => {
 
   const manifest = await loadManifest();
 
+  // Verify that the @solarflare/client package is installed. If not, we can't
+  // codegen, because there's nowhere to put the generated types.
+  const clientPackagePath = path.join(
+    process.cwd(),
+    "node_modules",
+    "@solarflare",
+    "client"
+  );
+  await fs.access(clientPackagePath).catch(() => {
+    console.error(
+      "The @solarflare/client package is not installed. Run `npm install @solarflare/client`."
+    );
+    process.exit(1);
+  });
+  await fs.access(path.join(clientPackagePath, "dist")).catch(() => {
+    console.error(
+      "The @solarflare/client package is present in your project, but there is no 'dist' directory. You may need to build the package."
+    );
+    process.exit(1);
+  });
+
   const client = await createClient(env.DB_CONNECTION_STRING);
 
   const generated = await Promise.all(
@@ -38,18 +59,8 @@ ${generated.map((g) => `  ${g.tableName}: ${g.interfaceName};`).join("\n")}
 
   const fileContent = `${generated.map((g) => g.typeDef).join("\n\n")}\n\n${dbTypedef}`;
 
-  // TODO: verify that @solarflare/client is present in node_modules.
-  // If it isn't, then they are likely getting something wrong and we should bail
-  // with a useful error.
   await fs.writeFile(
-    path.join(
-      process.cwd(),
-      "node_modules",
-      "@solarflare",
-      "client",
-      "dist",
-      "db.d.ts"
-    ),
+    path.join(clientPackagePath, "dist", "db.d.ts"),
     fileContent
   );
 };
