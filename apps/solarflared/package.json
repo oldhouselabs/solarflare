@@ -1,11 +1,14 @@
 {
   "name": "@solarflare/solarflared",
-  "version": "0.3.0",
+  "version": "0.3.3",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
     "solarflare": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
