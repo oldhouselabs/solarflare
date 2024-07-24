@@ -7,13 +7,17 @@ export const manifestSchema = z.object({
   tables: z
     .object({ name: z.string(), rls: z.string().or(z.literal(false)) })
     .array(),
-  auth: z.object({
-    type: z.literal("jwt"),
-    claim: z.string(),
-  }),
+  auth: z
+    .object({
+      type: z.literal("jwt"),
+      claim: z.string(),
+    })
+    .optional(),
 });
 
-export const loadManifest = async () => {
+type Manifest = z.infer<typeof manifestSchema>;
+
+export const loadManifest = async (): Promise<Manifest> => {
   // Read the solarflare.json file.
   const manifestPath = path.join(process.cwd(), "solarflare.json");
 
@@ -44,4 +48,15 @@ export const loadManifest = async () => {
   }
 
   return parsed.data;
+};
+
+export const validateManifestAuth = async (manifest: Manifest) => {
+  // Verify that if any tables have RLS enabled, that the auth section is present.
+  const tablesWithRls = manifest.tables.filter((t) => t.rls !== false);
+  if (tablesWithRls.length > 0 && !manifest.auth) {
+    console.error(
+      `RLS is enabled for tables ${tablesWithRls.join(", ")}, but no auth section is present in the manifest. Unable to launch server`
+    );
+    process.exit(1);
+  }
 };

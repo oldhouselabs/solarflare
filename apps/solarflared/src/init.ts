@@ -72,6 +72,7 @@ export const init = async () => {
 
   // Choose the RLS column for each selected table.
   const rlsColumnSelections = new Map<string, string | false>();
+  let didChooseRlsForAnyTable = false;
   for (const table of tableChoices) {
     const columns = await introspectColumnsForTable(client, table);
 
@@ -90,15 +91,21 @@ export const init = async () => {
     });
     rlsColumnSelections.set(table, selection);
     console.log(selection);
+    if (selection !== false) {
+      didChooseRlsForAnyTable = true;
+    }
   }
 
   console.log("\n");
 
   // Define the JWT claim that corresponds to the RLS column.
-  const claim = await input({
-    message: "Which JWT claim corresponds to your RLS keys?",
-    default: "sub",
-  });
+  let claim: string | null = null;
+  if (didChooseRlsForAnyTable) {
+    claim = await input({
+      message: "Which JWT claim corresponds to your RLS keys?",
+      default: "sub",
+    });
+  }
 
   // Update replication status to reflect the selections.
   await reconcilePublicationTables(
@@ -112,10 +119,13 @@ export const init = async () => {
       name: c,
       rls: rlsColumnSelections.get(c)!,
     })),
-    auth: {
-      type: "jwt",
-      claim,
-    },
+    auth:
+      claim !== null
+        ? {
+            type: "jwt",
+            claim,
+          }
+        : undefined,
   } satisfies z.infer<typeof manifestSchema>;
 
   // Write the manifest file to solarflare.json

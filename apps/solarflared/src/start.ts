@@ -9,7 +9,7 @@ import { createServer } from "node:http";
 import jwt from "jsonwebtoken";
 
 import { createClient, selectAllWithRls, SLOT_NAME } from "./postgres";
-import { loadManifest } from "./manifest";
+import { loadManifest, validateManifestAuth } from "./manifest";
 import { format } from "./zodErrors";
 
 const envSchema = z.object({
@@ -41,6 +41,11 @@ export const start = async (): Promise<void> => {
   const env = parsed.data;
 
   const manifest = await loadManifest();
+
+  // Check that if any tables have RLS enabled, that the auth section is present.
+  // Kill the process if not.
+  validateManifestAuth(manifest);
+
   const liveTables = new Map(manifest.tables.map((t) => [t.name, t]));
 
   const client = await createClient(env.DB_CONNECTION_STRING);
@@ -111,15 +116,18 @@ export const start = async (): Promise<void> => {
         return;
       }
 
-      // Now, verify that the claims contain the expected rls key.
-      if (manifestTable.rls !== false && !claims[manifest.auth.claim]) {
+      // Now, verify that the claims contain the expected RLS key.
+      // Note: the `!` is safe here because we have already validated the
+      // manifest. TODO: ideally reimplement this by transforming the manifest
+      // on server start to a more convenient data structure.
+      if (manifestTable.rls !== false && !claims[manifest.auth!.claim]) {
         console.error(
-          `auth error: JWT claims do not contain key ${manifest.auth.claim} as specified in solarflare.json`
+          `auth error: JWT claims do not contain key ${manifest.auth!.claim} as specified in solarflare.json`
         );
         return;
       }
 
-      const rlsKey = manifestTable.rls && claims[manifest.auth.claim];
+      const rlsKey = manifestTable.rls && claims[manifest.auth!.claim];
       const socketSubscription =
         manifestTable.rls !== false ? `${data.table}.${rlsKey}` : data.table;
       socket.join(socketSubscription);
