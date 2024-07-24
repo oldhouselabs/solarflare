@@ -197,7 +197,7 @@ export class Solarflare<
     }
 
     if (localTable.status !== "ready") {
-      throw new Error(`table \`${tableName}\` not ready`);
+      return undefined;
     }
 
     return localTable as TableState<DB[K]>;
