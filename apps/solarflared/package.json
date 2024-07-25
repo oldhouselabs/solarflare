@@ -15,7 +15,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "publish": "pnpm publish"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
