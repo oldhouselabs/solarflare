@@ -147,8 +147,8 @@ export class Solarflare<
 
   tables: Map<string, TableState> = new Map();
 
-  constructor(solarflare_url: string, jwt: string) {
-    this.#socket = io(solarflare_url, {
+  constructor(solarflareUrl: string, jwt: string) {
+    this.#socket = io(solarflareUrl, {
       transports: ["websocket"],
     });
     this.#jwt = jwt;

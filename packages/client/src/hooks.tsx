@@ -40,14 +40,14 @@ const Context = createContext<Solarflare | undefined>(undefined);
 
 export const SolarflareProvider = ({
   jwt,
-  solarflare_url,
+  solarflareUrl,
   children,
 }: {
   jwt: string;
-  solarflare_url: string;
+  solarflareUrl: string;
   children: React.ReactNode;
 }) => {
-  const sf = useRef(new Solarflare(solarflare_url, jwt));
+  const sf = useRef(new Solarflare(solarflareUrl, jwt));
 
   useEffect(() => {
     // If a new JWT is passed in, we set it on the Solarflare client instance.

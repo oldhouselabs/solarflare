@@ -31,7 +31,7 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
     <SolarflareProvider
       jwt={JWT}
       // eslint-disable-next-line turbo/no-undeclared-env-vars -- Not declaring in Turbo as this is just an example repo -- Not declaring in Turbo as this is just an example repo
-      solarflare_url={process.env.NEXT_PUBLIC_SOLARFLARE_URL!}
+      solarflareUrl={process.env.NEXT_PUBLIC_SOLARFLARE_URL!}
     >
       <p>User: {userId}</p>
       {children}
