@@ -1,5 +1,6 @@
 import pg from "pg";
 import { difference } from "./utils";
+import { logger } from "./logger";
 
 export const createClient = async (connectionString: string) => {
   const { Client } = pg;
@@ -15,7 +16,7 @@ export const verifyWalLevel = async (client: pg.Client) => {
   const walLevel = res.rows[0].wal_level;
   const isLogical = walLevel === "logical";
   if (!isLogical) {
-    console.error(
+    logger.error(
       `\`wal_level\` for this database is \`${walLevel}\` but solarflared requires \`logical\`
         To switch to logical replication, edit \`postgresql.conf\` (find the file location with \`SHOW config_file;\`)
         and set \`wal_level = logical\`. Then restart your Postgres server.
@@ -66,7 +67,7 @@ export const ensurePublication = async (client: pg.Client) => {
   if (!(await checkPublicationExists(client))) {
     await createPublication(client);
   } else {
-    console.log(`✅ solarflare_realtime publication exists`);
+    logger.info(`✅ solarflare_realtime publication exists`);
   }
 
   return await introspectPublishedTables(client);
@@ -94,9 +95,9 @@ const createReplicationSlot = async (client: pg.Client) => {
 export const ensureReplicationSlot = async (client: pg.Client) => {
   if (!(await checkReplicationSlotExists(client))) {
     await createReplicationSlot(client);
-    console.log(`✅ created logical replication slot \`${SLOT_NAME}\``);
+    logger.info(`✅ created logical replication slot \`${SLOT_NAME}\``);
   } else {
-    console.log(`✅ logical replication slot \`${SLOT_NAME}\` already exists`);
+    logger.info(`✅ logical replication slot \`${SLOT_NAME}\` already exists`);
   }
 };
 
@@ -175,7 +176,7 @@ export const reconcilePublicationTables = async (
     );
     return;
   } else {
-    console.log(`reconciling tables publishing to ${PUBLICATION_NAME}: `);
+    logger.info(`reconciling tables publishing to ${PUBLICATION_NAME}: `);
   }
 
   if (toAdd.size > 0) {
@@ -186,7 +187,7 @@ export const reconcilePublicationTables = async (
       .join(", ")}`;
     await client.query(addQuery);
     toAdd.forEach((table) => {
-      console.log(` - added \`${table}\` table`);
+      logger.info(` - added \`${table}\` table`);
     });
   }
 
@@ -198,7 +199,7 @@ export const reconcilePublicationTables = async (
       .join(", ")}`;
     await client.query(removeQuery);
     toRemove.forEach((table) => {
-      console.log(` - removed \`${table}\` table`);
+      logger.info(` - removed \`${table}\` table`);
     });
   }
 };
