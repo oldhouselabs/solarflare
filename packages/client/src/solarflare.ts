@@ -5,6 +5,13 @@
 import { io, Socket } from "socket.io-client";
 import { v4 as uuid } from "uuid";
 
+import {
+  DBRow,
+  InferPkType,
+  TableInfo,
+  type BootstrapMessage,
+} from "@repo/protocol-types";
+
 export * from "./hooks";
 import { OptimisticChangeForTable } from "./optimistic";
 
@@ -129,14 +136,22 @@ function serverValue<T>(slot: Slot<T>): T | undefined {
   const _: never = slot;
 }
 
-export type Table<Row = unknown> = Map<string, Slot<Row>>;
+export type Table<R extends DBRow = DBRow> = Map<
+  InferPkType<R>,
+  Slot<R["$fields"]>
+>;
 
-type TableState<Row = unknown> =
-  | { status: "ready"; data: Table<Row>; notify: () => void }
+type TableState<Row extends DBRow = DBRow> =
+  | {
+      status: "ready";
+      info: TableInfo<Row["$meta"]["pk"]>;
+      data: Table<Row>;
+      notify: () => void;
+    }
   | { status: "loading"; queryId: string; notify: () => void };
 
 export class Solarflare<
-  DB extends Record<string, object> = Record<string, object>,
+  DB extends { [table: string]: DBRow } = Record<string, never>,
 > {
   #socket: Socket;
 
@@ -151,39 +166,58 @@ export class Solarflare<
     this.#socket = io(solarflareUrl, {
       transports: ["websocket"],
     });
+
+    this.#socket.on("connect", () => {
+      console.log("Connected to the server");
+    });
+
+    this.#socket.on("disconnect", (reason) => {
+      console.log(`Disconnected: ${reason}`);
+      if (reason === "io server disconnect") {
+        // The disconnection was initiated by the server, reconnect manually
+        this.#socket.connect();
+      }
+    });
+
     this.#jwt = jwt;
 
-    this.#socket.on("bootstrap", (msg) => {
-      const tableName = msg.table;
+    this.#socket.on(
+      "bootstrap",
+      <PK extends string | undefined>(msg: BootstrapMessage<PK>) => {
+        const tableName = msg.table;
 
-      const localTable = this.tables.get(tableName);
-      if (localTable === undefined) {
-        throw new Error(
-          "shouldn't receive bootstrap for a table we didn't request"
-        );
+        const localTable = this.tables.get(tableName);
+        if (localTable === undefined) {
+          throw new Error(
+            "shouldn't receive bootstrap for a table we didn't request"
+          );
+        }
+
+        if (localTable.status !== "loading") {
+          return;
+        }
+
+        const notify = localTable.notify;
+
+        const data = new Map();
+        if (msg.pk !== undefined) {
+          for (const row of msg.data) {
+            const slot = { status: "normal", value: row };
+            data.set(row[msg.pk], slot);
+          }
+        }
+
+        this.tables.set(tableName, {
+          status: "ready",
+          info: msg.info,
+          data,
+          notify,
+        });
+
+        // Used to trigger re-renders in hooks that requested the data.
+        notify();
       }
-
-      if (localTable.status !== "loading") {
-        return;
-      }
-
-      const notify = localTable.notify;
-
-      const data = new Map();
-      for (const row of msg.data) {
-        const slot = { status: "normal", value: row };
-        data.set(row.id, slot);
-      }
-
-      this.tables.set(tableName, {
-        status: "ready",
-        data,
-        notify,
-      });
-
-      // Used to trigger re-renders in hooks that requested the data.
-      notify();
-    });
+    );
 
     this.#socket.on("change", this.handleChange.bind(this));
   }
@@ -224,11 +258,12 @@ export class Solarflare<
           o[col] = change.columnvalues[idx];
         });
 
-        // TODO: this fails when you don't have an ID column.
         // Need to handle PKs better.
-        const id = o.id;
         if (localTable.status === "ready") {
+          const id = o[localTable.info.pk];
           localTable.data.set(id, { status: "normal", value: o });
+        } else {
+          // TODO: handle pre-ready updates by caching them and replaying later.
         }
         break;
       }
@@ -239,8 +274,8 @@ export class Solarflare<
         change.oldkeys?.keynames.forEach((col, idx) => {
           o[col] = change.oldkeys?.keyvalues[idx];
         });
-        const id = o.id;
         if (localTable.status === "ready") {
+          const id = o[localTable.info.pk];
           localTable.data.delete(id);
         }
         break;
@@ -299,34 +334,41 @@ export class Solarflare<
 
     switch (change.action) {
       case "insert": {
-        const { id, data } = change;
+        const pk = change[table.info.pk];
+        const { data } = change;
 
-        const row = table.data.get(id);
+        const row = table.data.get(pk);
         if (row !== undefined) {
-          console.error(`insert on existing row \`${id}\``);
+          console.error(`insert on existing row \`${pk}\``);
           return;
         }
-        table.data.set(id, { status: "inserted", override: data });
+        table.data.set(pk, { status: "inserted", override: data });
         table.notify();
 
         break;
       }
 
       case "update": {
-        const { id, data } = change;
+        const pk = change[table.info.pk];
+        if (pk === undefined) {
+          console.error(`update on row with missing PK`);
+          return;
+        }
 
-        const row = table.data.get(id);
+        const { data } = change;
+
+        const row = table.data.get(pk);
         if (row === undefined) {
-          console.error(`update on non-existent row \`${id}\``);
+          console.error(`update on non-existent row \`${pk}\``);
           return;
         }
         if (row.status === "deleted" || row.status === "inserted") {
-          console.error(`update on deleted row \`${id}\``);
+          console.error(`update on deleted row \`${pk}\``);
           return;
         }
 
         const value = serverValue(row);
-        table.data.set(id, {
+        table.data.set(pk, {
           status: "updated",
           value,
           override: { ...value, ...data },
@@ -337,23 +379,27 @@ export class Solarflare<
       }
 
       case "delete": {
-        const { id } = change;
+        const pk = change[table.info.pk];
+        if (pk === undefined) {
+          console.error(`update on row with missing PK`);
+          return;
+        }
 
-        const row = table.data.get(id);
+        const row = table.data.get(pk);
         if (row === undefined) {
-          console.error(`delete on non-existent row \`${id}\``);
+          console.error(`delete on non-existent row \`${pk}\``);
           return;
         }
         if (row.status === "deleted") {
-          console.error(`delete on already deleted row \`${id}\``);
+          console.error(`delete on already deleted row \`${pk}\``);
           return;
         }
         if (row.status === "inserted") {
           // Since this was optimistically inserted, and now is optimistically
           // deleted, we can just remove it from the table.
-          table.data.delete(id);
+          table.data.delete(pk);
         } else {
-          table.data.set(id, { status: "deleted", value: serverValue(row) });
+          table.data.set(pk, { status: "deleted", value: serverValue(row) });
         }
         table.notify();
 
@@ -367,12 +413,12 @@ export class Solarflare<
     }
   }
 
-  clearOverride({
+  clearOverride<Table extends Extract<keyof DB, string>>({
     table,
-    id,
+    pk,
   }: {
-    table: Extract<keyof DB, string>;
-    id: string;
+    table: Table;
+    pk: DB[Table]["$fields"][DB[Table]["$meta"]["pk"]];
   }) {
     const localTable = this.table(table);
     if (localTable === undefined) {
@@ -384,23 +430,23 @@ export class Solarflare<
       return;
     }
 
-    const slot = localTable.data.get(id);
+    const slot = localTable.data.get(pk);
     if (slot === undefined) {
-      console.error(`clearOverride on non-existent row \`${id}\``);
+      console.error(`clearOverride on non-existent row \`${pk}\``);
       return;
     }
     switch (slot.status) {
       case "normal": {
-        console.error(`clearOverride on normal row \`${id}\``);
+        console.error(`clearOverride on normal row \`${pk}\``);
         return;
       }
       case "inserted": {
-        localTable.data.delete(id);
+        localTable.data.delete(pk);
         return;
       }
       case "updated":
       case "deleted": {
-        localTable.data.set(id, { status: "normal", value: slot.value });
+        localTable.data.set(pk, { status: "normal", value: slot.value });
         return;
       }
       default: {

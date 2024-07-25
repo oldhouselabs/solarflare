@@ -69,6 +69,9 @@ importers:
       '@inquirer/prompts':
         specifier: ^5.2.0
         version: 5.2.0
+      '@repo/protocol-types':
+        specifier: workspace:*
+        version: link:../../packages/protocol_types
       commander:
         specifier: ^12.1.0
         version: 12.1.0
@@ -130,6 +133,9 @@ importers:
 
   packages/client:
     dependencies:
+      '@repo/protocol-types':
+        specifier: workspace:*
+        version: link:../protocol_types
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -199,6 +205,18 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.3.3
+
+  packages/protocol_types:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: ^5.5
+        version: 5.5.3
 
   packages/typescript-config: {}
 

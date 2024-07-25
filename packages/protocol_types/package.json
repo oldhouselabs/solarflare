@@ -1,0 +1,11 @@
+{
+  "name": "@repo/protocol-types",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5.5"
+  }
+}

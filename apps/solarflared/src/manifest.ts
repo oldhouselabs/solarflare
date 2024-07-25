@@ -16,7 +16,7 @@ export const manifestSchema = z.object({
     .optional(),
 });
 
-type Manifest = z.infer<typeof manifestSchema>;
+export type Manifest = z.infer<typeof manifestSchema>;
 
 export const loadManifest = async (): Promise<Manifest> => {
   // Read the solarflare.json file.

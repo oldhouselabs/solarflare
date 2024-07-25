@@ -100,14 +100,16 @@ const codegenTypeForTable = (
   tableName: string,
   table: Awaited<ReturnType<typeof introspectTable>>
 ) => {
-  const fields = table.rows.map((row) => {
+  const fieldItems = table.$fields.map((row) => {
     const tsType = typeMappings[row.data_type] || "any";
     const isOptional = row.is_nullable === "YES" ? "?" : "";
-    return `  ${row.column_name}${isOptional}: ${tsType};`;
+    return `    ${row.column_name}${isOptional}: ${tsType};`;
   });
 
   const interfaceName = capitalize(pluralize.singular(tableName));
-  const typeDef = `export interface ${interfaceName} {\n${fields.join("\n")}\n}`;
+  const meta = `  $meta: {\n    pk: "${table.$meta.pk}";\n  };`;
+  const fields = `  $fields: {\n${fieldItems.join("\n")}\n  }`;
+  const typeDef = `export type ${interfaceName} = {\n${meta}\n${fields}\n}`;
 
   return {
     tableName,

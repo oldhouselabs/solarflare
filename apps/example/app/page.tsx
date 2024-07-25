@@ -21,8 +21,7 @@ export default function Home() {
     // to see the change.
     const { rollback } = optimistic({
       action: "update",
-      // @ts-ignore -- TODO: fix PKs!
-      id: 10185,
+      uuid: 10185,
       data: { name: "Alice" },
     });
 
@@ -34,7 +33,7 @@ export default function Home() {
     <div>
       <ul>
         {data.map((employee) => (
-          <li key={employee.id}>{employee.name}</li>
+          <li key={employee.uuid}>{employee.name}</li>
         ))}
       </ul>
       <button onClick={handleClick}>Update</button>

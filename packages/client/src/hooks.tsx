@@ -8,6 +8,7 @@ import {
   Solarflare,
 } from "./solarflare";
 import { OptimisticChange } from "./optimistic";
+import { DBRow } from "@repo/protocol-types";
 
 /**
  * Utility hook to trigger re-renders.
@@ -17,7 +18,7 @@ export const useRerender = () => {
   return () => setTick((t) => t + 1);
 };
 
-export type UseTable<Row extends object> =
+export type UseTable<Row extends DBRow> =
   | {
       readonly isLoading: true;
       readonly data: undefined;
@@ -25,15 +26,15 @@ export type UseTable<Row extends object> =
     }
   | {
       readonly isLoading: false;
-      readonly data: Row[];
+      readonly data: Row["$fields"][];
       optimistic: (change: OptimisticChange<Row>) => { rollback: () => void };
     };
 
-export type UseTableOptions<Row> = {
+export type UseTableOptions<Row extends DBRow> = {
   /**
    * Comparison function to define a sort ordering on the table rows.
    */
-  sort?: (a: Row, b: Row) => number;
+  sort?: (a: Row["$fields"], b: Row["$fields"]) => number;
 };
 
 const Context = createContext<Solarflare | undefined>(undefined);
@@ -58,7 +59,7 @@ export const SolarflareProvider = ({
 };
 
 export const createSolarflare = <
-  DB extends Record<string, object> = Record<string, object>,
+  DB extends { [table: string]: DBRow } = Record<string, never>,
 >() => {
   type K = Extract<keyof DB, string>;
 
@@ -66,7 +67,7 @@ export const createSolarflare = <
     tableName: KInput,
     options?: UseTableOptions<DB[KInput]>
   ): UseTable<DB[KInput]> => {
-    type V = DB[KInput];
+    type V = DB[KInput]["$fields"];
 
     const rerender = useRerender();
 
@@ -119,10 +120,12 @@ export const createSolarflare = <
     }
 
     const optimistic = (change: OptimisticChange<DB[KInput]>) => {
+      const pk = tableEntry.info.pk;
+      const pkValue = change[pk];
       sf.optimistic({ ...change, table: tableName });
 
       const rollback = () => {
-        sf.clearOverride({ table: tableName, id: change.id });
+        sf.clearOverride({ table: tableName, pk: pkValue });
         sf.table(tableName)?.notify();
       };
 

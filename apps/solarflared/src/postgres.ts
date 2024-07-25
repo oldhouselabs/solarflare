@@ -144,11 +144,19 @@ export const introspectTable = async (client: pg.Client, tableName: string) => {
       WHERE table_name = $1
     `;
 
-  return await client.query<{
+  const columnData = await client.query<{
     column_name: string;
     data_type: string;
     is_nullable: "YES" | "NO";
   }>(query, [tableName]);
+  const primaryKey = await getPrimaryKey(client, "public", tableName);
+
+  return {
+    $meta: {
+      pk: primaryKey,
+    },
+    $fields: columnData.rows,
+  };
 };
 
 /**
@@ -234,4 +242,45 @@ WHERE
   }>(query, [table]);
 
   return res.rows;
+};
+
+export class CompositePrimaryKeyError extends Error {
+  constructor() {
+    super(`composite primary key not supported`);
+  }
+}
+
+/**
+ * Introspect the database to find the primary key column for a given table.
+ */
+export const getPrimaryKey = async (
+  client: pg.Client,
+  schema: string,
+  table: string
+) => {
+  const query = `SELECT
+    kcu.column_name
+FROM
+    information_schema.table_constraints tc
+    JOIN information_schema.key_column_usage kcu
+    ON tc.constraint_name = kcu.constraint_name
+    AND tc.table_schema = kcu.table_schema
+WHERE
+    tc.constraint_type = 'PRIMARY KEY'
+    AND tc.table_name = $1
+    AND tc.table_schema = $2;`;
+
+  const res = await client.query<{ column_name: string }>(query, [
+    table,
+    schema,
+  ]);
+
+  if (res.rows.length === 0) {
+    return undefined;
+  }
+  if (res.rows.length > 1) {
+    throw new CompositePrimaryKeyError();
+  }
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- Checked above
+  return res.rows[0]!.column_name;
 };

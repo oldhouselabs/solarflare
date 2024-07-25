@@ -117,6 +117,7 @@ export const init = async () => {
   const manifest = {
     tables: tableChoices.map((c) => ({
       name: c,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- we know this key exists
       rls: rlsColumnSelections.get(c)!,
     })),
     auth:

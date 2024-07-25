@@ -26,6 +26,7 @@
     "react": "^18.3.1"
   },
   "dependencies": {
+    "@repo/protocol-types": "workspace:*",
     "socket.io-client": "^4.7.5",
     "uuid": "^10.0.0",
     "zod": "^3.23.8"

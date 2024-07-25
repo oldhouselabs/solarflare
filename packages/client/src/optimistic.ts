@@ -1,29 +1,31 @@
-export type OptimisticInsert<Row extends object> = {
+import { DBRow } from "@repo/protocol-types";
+
+export type OptimisticInsert<Row extends DBRow> = {
   action: "insert";
-  // TODO: this needs to be the PK type
-  id: string;
-  data: Row;
+  data: Row["$fields"];
+} & {
+  [PK in Row["$meta"]["pk"]]: Row["$fields"][PK];
 };
 
-export type OptimisticUpdate<Row extends object> = {
+export type OptimisticUpdate<Row extends DBRow> = {
   action: "update";
-  // TODO: this needs to be the PK type
-  id: string;
-  data: Partial<Row>;
+  data: Partial<Row["$fields"]>;
+} & {
+  [PK in Row["$meta"]["pk"]]: Row["$fields"][PK];
 };
 
-export type OptimisticDelete = {
+export type OptimisticDelete<Row extends DBRow> = {
   action: "delete";
-  // TODO: this needs to be the PK type
-  id: string;
+} & {
+  [PK in Row["$meta"]["pk"]]: Row["$fields"][PK];
 };
 
-export type OptimisticChange<Row extends object> =
+export type OptimisticChange<Row extends DBRow> =
   | OptimisticInsert<Row>
   | OptimisticUpdate<Row>
-  | OptimisticDelete;
+  | OptimisticDelete<Row>;
 
 export type OptimisticChangeForTable<
-  DB extends Record<string, object> = Record<string, object>,
+  DB extends { [table: string]: DBRow } = Record<string, never>,
   Table extends Extract<keyof DB, string> = Extract<keyof DB, string>,
 > = OptimisticChange<DB[Table]> & { table: Table };

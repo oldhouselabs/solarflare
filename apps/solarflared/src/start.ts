@@ -8,10 +8,13 @@ import { Server } from "socket.io";
 import { createServer } from "node:http";
 import jwt from "jsonwebtoken";
 
+import { type BootstrapMessage } from "@repo/protocol-types";
+
 import { createClient, selectAllWithRls, SLOT_NAME } from "./postgres";
 import { loadManifest, validateManifestAuth } from "./manifest";
 import { format } from "./zodErrors";
 import { logger } from "./logger";
+import { buildTableInfoMap } from "./table_info";
 
 const envSchema = z.object({
   DB_CONNECTION_STRING: z.string().min(1),
@@ -49,11 +52,11 @@ export const start = async (): Promise<void> => {
   // Kill the process if not.
   validateManifestAuth(manifest);
 
-  const liveTables = new Map(manifest.tables.map((t) => [t.name, t]));
-  logger.debug(`live tables: ${JSON.stringify([...liveTables], null, 2)}`);
-
   const client = await createClient(env.DB_CONNECTION_STRING);
   logger.debug(`connected to database`);
+
+  const liveTables = await buildTableInfoMap(client, manifest);
+  logger.debug(`live tables: ${JSON.stringify([...liveTables], null, 2)}`);
 
   const service = new LogicalReplicationService(
     {
@@ -96,8 +99,6 @@ export const start = async (): Promise<void> => {
       const parsed = await dataSubscription.safeParseAsync(JSON.parse(msg));
 
       if (!parsed.success) {
-        // TODO: introduce a logger so we can log this in debug mode, but
-        // silently drop in prod.
         logger.error(format(parsed.error), "invalid `subscribe` message.");
         return;
       }
@@ -137,16 +138,18 @@ export const start = async (): Promise<void> => {
       logger.debug(`subscribing to table: ${JSON.stringify(manifestTable)}`);
 
       // Now, verify that the claims contain the expected RLS key.
-      // Note: the `!` is safe here because we have already validated the
-      // manifest. TODO: ideally reimplement this by transforming the manifest
-      // on server start to a more convenient data structure.
+      // TODO: ideally reimplement this by transforming the manifest on server
+      // start to a more convenient data structure.
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- we have already validated the manifest
       if (manifestTable.rls !== false && !claims[manifest.auth!.claim]) {
         logger.error(
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- we have already validated the manifest
           `auth error: JWT claims do not contain key ${manifest.auth!.claim} as specified in solarflare.json`
         );
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- we have already validated the manifest
       const rlsKey = manifestTable.rls && claims[manifest.auth!.claim];
       logger.debug(`RLS key: ${rlsKey}`);
 
@@ -169,7 +172,12 @@ export const start = async (): Promise<void> => {
         rlsKey
       );
 
-      socket.emit("bootstrap", { table: data.table, data: bootstrapResults });
+      socket.emit("bootstrap", {
+        table: data.table,
+        info: manifestTable,
+        pk: manifestTable.pk,
+        data: bootstrapResults,
+      } satisfies BootstrapMessage);
       logger.debug(`sent bootstrap data to client`);
     });
   });
@@ -265,7 +273,11 @@ export const start = async (): Promise<void> => {
         `socket subscription for data change event: ${socketSubscription}`
       );
       io.to(socketSubscription).emit("change", change);
-      logger.debug(`emitted change event to clients`);
+      logger.debug(
+        `emitted change event to ${
+          io.sockets.adapter.rooms.get(socketSubscription)?.size ?? 0
+        } clients`
+      );
     }
   });
 
