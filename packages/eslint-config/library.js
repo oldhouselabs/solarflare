@@ -43,6 +43,7 @@ module.exports = {
       "error",
       { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
     ],
+    "@typescript-eslint/no-non-null-assertion": "error",
     "eslint-comments/no-unused-disable": "error",
     "eslint-comments/require-description": "error",
   },

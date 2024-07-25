@@ -28,6 +28,7 @@ module.exports = {
     },
   },
   rules: {
+    "@typescript-eslint/no-non-null-assertion": "error",
     "eslint-comments/no-unused-disable": "error",
     "eslint-comments/require-description": "error",
   },
