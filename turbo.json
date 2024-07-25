@@ -28,6 +28,14 @@
       "dependsOn": [
         "^typecheck"
       ]
+    },
+    "publish": {
+      "dependsOn": [
+        "^publish"
+      ],
+      "outputs": [
+        "dist"
+      ]
     }
   }
 }
