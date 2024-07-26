@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest",
+    "test:run": "vitest --run",
     "publish": "pnpm publish"
   },
   "devDependencies": {

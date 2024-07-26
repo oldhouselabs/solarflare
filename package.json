@@ -8,7 +8,7 @@
     "typecheck": "turbo typecheck",
     "tywatch": "turbo typecheck -- --watch",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "publish:all": "turbo run typecheck lint test build --force && turbo run publish"
+    "publish:all": "turbo run typecheck lint test:run build --force && turbo run publish"
   },
   "devDependencies": {
     "prettier": "^3.2.5",
