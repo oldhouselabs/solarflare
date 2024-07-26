@@ -4,6 +4,7 @@
   "version": "0.4.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "type": "module",
   "files": [
     "dist"
   ],
@@ -12,16 +13,23 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
+    "test": "vitest",
     "publish": "pnpm publish"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.0",
     "@types/react": "^18.3.3",
     "@types/uuid": "^10.0.0",
     "eslint": "^8",
+    "jsdom": "^24.1.1",
+    "socket.io": "^4.7.5",
     "tsx": "^4.16.2",
-    "typescript": "^5.5"
+    "typescript": "^5.5",
+    "vite-tsconfig-paths": "^4.3.2",
+    "vitest": "^2.0.4"
   },
   "peerDependencies": {
     "react": "^18.3.1"

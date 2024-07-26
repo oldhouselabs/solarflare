@@ -59,7 +59,7 @@ export const SolarflareProvider = ({
 };
 
 export const createSolarflare = <
-  DB extends { [table: string]: DBRow } = Record<string, never>,
+  DB extends { [table: string]: DBRow } = {},
 >() => {
   type K = Extract<keyof DB, string>;
 

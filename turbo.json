@@ -24,11 +24,8 @@
       "cache": false,
       "persistent": true
     },
-    "typecheck": {
-      "dependsOn": [
-        "^typecheck"
-      ]
-    },
+    "typecheck": {},
+    "test": {},
     "publish": {
       "dependsOn": [
         "^publish"
