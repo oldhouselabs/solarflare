@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeAll, expect, test } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import "@testing-library/jest-dom/vitest";

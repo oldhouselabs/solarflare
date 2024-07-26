@@ -60,6 +60,7 @@ export const SolarflareProvider = ({
 };
 
 export const createSolarflare = <
+  // eslint-disable-next-line @typescript-eslint/ban-types -- Required to allow passing the export of db.d.ts
   DB extends { [table: string]: DBRow } = {},
 >() => {
   type K = Extract<keyof DB, string>;

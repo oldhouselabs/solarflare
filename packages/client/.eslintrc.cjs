@@ -4,6 +4,7 @@ module.exports = {
   extends: ["@repo/eslint-config/library.js"],
   parser: "@typescript-eslint/parser",
   parserOptions: {
-    project: true,
+    project: ["./tsconfig.json", "./tsconfig.test.json"],
   },
+  ignorePatterns: ["vitest.config.mts"],
 };
