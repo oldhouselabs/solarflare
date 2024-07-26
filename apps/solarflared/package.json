@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "node build.js",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
@@ -25,13 +25,14 @@
     "@types/node": "^20",
     "@types/pg": "^8.11.6",
     "@types/pluralize": "^0.0.33",
+    "esbuild": "^0.23.0",
     "eslint": "^8",
     "tsx": "^4.16.2",
     "typescript": "^5.5"
   },
   "dependencies": {
-    "@repo/protocol-types": "workspace:*",
     "@inquirer/prompts": "^5.2.0",
+    "@repo/protocol-types": "workspace:*",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "jsonwebtoken": "^9.0.2",

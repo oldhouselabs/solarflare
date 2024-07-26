@@ -15,7 +15,7 @@
     ],
     "module": "ESNext",
     "moduleDetection": "force",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "Node",
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
