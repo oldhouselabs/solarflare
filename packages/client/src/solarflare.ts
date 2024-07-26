@@ -141,14 +141,27 @@ export type Table<R extends DBRow = DBRow> = Map<
   Slot<R["$fields"]>
 >;
 
+/**
+ * A subscriber is a function that can be called to notify a component that
+ * the data it is displaying has changed.
+ */
+type Subscriber = () => void;
+
+// TODO: make `Table` a class, and move `notify` to a method on the class.
+export const notify = (subscribers: Set<Subscriber>) => {
+  for (const notify of subscribers) {
+    notify();
+  }
+};
+
 type TableState<Row extends DBRow = DBRow> =
   | {
       status: "ready";
       info: TableInfo<Row["$meta"]["pk"]>;
       data: Table<Row>;
-      notify: () => void;
+      subscribers: Set<Subscriber>;
     }
-  | { status: "loading"; queryId: string; notify: () => void };
+  | { status: "loading"; queryId: string; subscribers: Set<Subscriber> };
 
 export class Solarflare<
   DB extends { [table: string]: DBRow } = Record<string, never>,
@@ -197,7 +210,7 @@ export class Solarflare<
           return;
         }
 
-        const notify = localTable.notify;
+        const subscribers = localTable.subscribers;
 
         const data = new Map();
         if (msg.pk !== undefined) {
@@ -211,11 +224,11 @@ export class Solarflare<
           status: "ready",
           info: msg.info,
           data,
-          notify,
+          subscribers,
         });
 
-        // Used to trigger re-renders in hooks that requested the data.
-        notify();
+        // Trigger re-renders in hooks that requested the data.
+        notify(subscribers);
       }
     );
 
@@ -295,21 +308,42 @@ export class Solarflare<
       }
     }
 
-    localTable.notify();
+    notify(localTable.subscribers);
   }
 
   subscribe(tableName: string, notify: () => void) {
     const queryId = uuid();
-    this.tables.set(tableName, { status: "loading", notify, queryId });
+    const localTable = this.tables.get(tableName);
 
-    this.#socket.emit(
-      "subscribe",
-      JSON.stringify({
+    if (localTable !== undefined) {
+      switch (localTable.status) {
+        case "ready":
+          localTable.subscribers.add(notify);
+          return;
+        case "loading":
+          localTable.subscribers.add(notify);
+          return;
+        default: {
+          // Exhaustiveness check.
+          const _: never = localTable;
+        }
+      }
+    } else {
+      this.tables.set(tableName, {
+        status: "loading",
+        subscribers: new Set([notify]),
         queryId,
-        table: tableName,
-        jwt: this.#jwt,
-      })
-    );
+      });
+
+      this.#socket.emit(
+        "subscribe",
+        JSON.stringify({
+          queryId,
+          table: tableName,
+          jwt: this.#jwt,
+        })
+      );
+    }
   }
 
   optimistic<T extends Extract<keyof DB, string> = Extract<keyof DB, string>>(
@@ -343,7 +377,7 @@ export class Solarflare<
           return;
         }
         table.data.set(pk, { status: "inserted", override: data });
-        table.notify();
+        notify(table.subscribers);
 
         break;
       }
@@ -373,7 +407,7 @@ export class Solarflare<
           value,
           override: { ...value, ...data },
         });
-        table.notify();
+        notify(table.subscribers);
 
         break;
       }
@@ -401,7 +435,7 @@ export class Solarflare<
         } else {
           table.data.set(pk, { status: "deleted", value: serverValue(row) });
         }
-        table.notify();
+        notify(table.subscribers);
 
         break;
       }

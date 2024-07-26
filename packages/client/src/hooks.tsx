@@ -6,6 +6,7 @@ import {
   SlotNormal,
   SlotUpdated,
   Solarflare,
+  notify,
 } from "./solarflare";
 import { OptimisticChange } from "./optimistic";
 import { DBRow } from "@repo/protocol-types";
@@ -126,7 +127,8 @@ export const createSolarflare = <
 
       const rollback = () => {
         sf.clearOverride({ table: tableName, pk: pkValue });
-        sf.table(tableName)?.notify();
+        const table = sf.table(tableName);
+        table && notify(table.subscribers);
       };
 
       return { rollback };
