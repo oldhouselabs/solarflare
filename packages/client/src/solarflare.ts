@@ -167,6 +167,7 @@ export class Solarflare<
   DB extends { [table: string]: DBRow } = Record<string, never>,
 > {
   #socket: Socket;
+  #hasConnected: boolean = false;
 
   /**
    * The JWT to be used when authenticating with the server.
@@ -178,17 +179,19 @@ export class Solarflare<
   constructor(solarflareUrl: string, jwt: string) {
     this.#socket = io(solarflareUrl, {
       transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     this.#socket.on("connect", () => {
       console.log("Connected to the server");
-    });
-
-    this.#socket.on("disconnect", (reason) => {
-      console.log(`Disconnected: ${reason}`);
-      if (reason === "io server disconnect") {
-        // The disconnection was initiated by the server, reconnect manually
-        this.#socket.connect();
+      if (this.#hasConnected) {
+        // This is a reconnection.
+        this.handleReconnect();
+      } else {
+        this.#hasConnected = true;
       }
     });
 
@@ -233,6 +236,35 @@ export class Solarflare<
     );
 
     this.#socket.on("change", this.handleChange.bind(this));
+  }
+
+  /**
+   * Runs on reconnections to the server after a disconnection.
+   *
+   * Primarily responsible for re-subscribing to relevant tables.
+   */
+  handleReconnect() {
+    // TODO: ideally there should be a `catch-up` message rather than
+    // re-bootstrapping all tables. Requires complex server logic though.
+    for (const [tableName, localTable] of this.tables) {
+      if (localTable.status === "ready") {
+        const queryId = uuid();
+        this.#socket.emit(
+          "subscribe",
+          JSON.stringify({
+            queryId,
+            table: tableName,
+            jwt: this.#jwt,
+          })
+        );
+        console.log(`Re-bootstrapping table ${tableName}`);
+        this.tables.set(tableName, {
+          ...localTable,
+          status: "loading",
+          queryId,
+        });
+      }
+    }
   }
 
   table<K extends Extract<keyof DB, string>>(
