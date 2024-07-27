@@ -289,7 +289,6 @@ export class Solarflare<
         subscribers: new Set([notify]),
         queryId,
       });
-      console.log(this.tables.get(tableRef));
 
       this.#socket.emit("subscribe", {
         queryId,
