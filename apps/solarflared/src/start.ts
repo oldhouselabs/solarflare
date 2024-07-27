@@ -20,7 +20,6 @@ import { loadManifest, validateManifestAuth } from "./manifest";
 import { format } from "./zodErrors";
 import { logger } from "./logger";
 import { buildTableStructure } from "./table_info";
-import { table } from "node:console";
 
 const envSchema = z.object({
   DB_CONNECTION_STRING: z.string().min(1),

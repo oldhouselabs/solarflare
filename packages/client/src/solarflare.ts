@@ -10,6 +10,7 @@ import { v4 as uuid } from "uuid";
 import {
   asString,
   DBRow,
+  InferPk,
   refFromQualifiedName,
   SubscribeMessage,
   TableRef,
@@ -325,44 +326,43 @@ export class Solarflare<
 
     switch (change.action) {
       case "insert": {
-        table;
-        // @ts-ignore
-        const pk = change[table.info.pk];
+        const pk: InferPk<DB[T]> = table.info.pk;
+        const pkv = change[pk];
         const { data } = change;
 
-        const row = table.data.get(pk);
+        const row = table.data.get(pkv);
         if (row !== undefined) {
-          console.error(`insert on existing row \`${pk}\``);
+          console.error(`insert on existing row \`${pkv}\``);
           return;
         }
-        table.data.set(pk, { status: "inserted", override: data });
+        table.data.set(pkv, { status: "inserted", override: data });
         notify(table.subscribers);
 
         break;
       }
 
       case "update": {
-        // @ts-ignore
-        const pk = change[table.info.pk];
-        if (pk === undefined) {
+        const pk: InferPk<DB[T]> = table.info.pk;
+        const pkv = change[pk];
+        if (pkv === undefined) {
           console.error(`update on row with missing PK`);
           return;
         }
 
         const { data } = change;
 
-        const row = table.data.get(pk);
+        const row = table.data.get(pkv);
         if (row === undefined) {
-          console.error(`update on non-existent row \`${pk}\``);
+          console.error(`update on non-existent row \`${pkv}\``);
           return;
         }
         if (row.status === "deleted" || row.status === "inserted") {
-          console.error(`update on deleted row \`${pk}\``);
+          console.error(`update on deleted row \`${pkv}\``);
           return;
         }
 
         const value = serverValue(row);
-        table.data.set(pk, {
+        table.data.set(pkv, {
           status: "updated",
           value,
           override: { ...value, ...data },
@@ -373,28 +373,28 @@ export class Solarflare<
       }
 
       case "delete": {
-        // @ts-ignore
-        const pk = change[table.info.pk];
-        if (pk === undefined) {
+        const pk: InferPk<DB[T]> = table.info.pk;
+        const pkv = change[pk];
+        if (pkv === undefined) {
           console.error(`update on row with missing PK`);
           return;
         }
 
-        const row = table.data.get(pk);
+        const row = table.data.get(pkv);
         if (row === undefined) {
-          console.error(`delete on non-existent row \`${pk}\``);
+          console.error(`delete on non-existent row \`${pkv}\``);
           return;
         }
         if (row.status === "deleted") {
-          console.error(`delete on already deleted row \`${pk}\``);
+          console.error(`delete on already deleted row \`${pkv}\``);
           return;
         }
         if (row.status === "inserted") {
           // Since this was optimistically inserted, and now is optimistically
           // deleted, we can just remove it from the table.
-          table.data.delete(pk);
+          table.data.delete(pkv);
         } else {
-          table.data.set(pk, { status: "deleted", value: serverValue(row) });
+          table.data.set(pkv, { status: "deleted", value: serverValue(row) });
         }
         notify(table.subscribers);
 

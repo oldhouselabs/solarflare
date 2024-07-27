@@ -1,4 +1,4 @@
-import { DBRow, InferPkType, TableInfo, TableRef } from "@repo/protocol-types";
+import { DBRow, InferPkType, TableInfo } from "@repo/protocol-types";
 
 /**
  * Represents a slot that reflects the latest known server value, with no optimistic updates.
@@ -61,7 +61,7 @@ export type Table<R extends DBRow = DBRow> = Map<
   Slot<R["$fields"]>
 >;
 
-export type TableState<Row extends DBRow = DBRow, Subscriber = any> =
+export type TableState<Row extends DBRow = DBRow, Subscriber = unknown> =
   | {
       status: "ready";
       info: TableInfo<Row["$meta"]["pk"]>;

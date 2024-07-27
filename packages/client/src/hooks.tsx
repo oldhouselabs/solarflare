@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Solarflare, notify } from "./solarflare";
 import { OptimisticChange } from "./optimistic";
-import { DBRow, TableRef, refFromQualifiedName } from "@repo/protocol-types";
+import { DBRow, InferPk, refFromQualifiedName } from "@repo/protocol-types";
 import { SlotInserted, SlotNormal, SlotUpdated } from "./tables";
 
 /**
@@ -118,8 +118,7 @@ export const createSolarflare = <
     }
 
     const optimistic = (change: OptimisticChange<DB[KInput]>) => {
-      const pk = tableEntry.info.pk;
-      // @ts-ignore
+      const pk: InferPk<DB[KInput]> = tableEntry.info.pk;
       const pkValue = change[pk];
       sf.optimistic({ ...change, table: tableName });
 
