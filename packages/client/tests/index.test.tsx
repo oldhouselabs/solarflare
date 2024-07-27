@@ -6,6 +6,7 @@ import { Server } from "socket.io";
 import "@testing-library/jest-dom/vitest";
 
 import { createSolarflare, SolarflareProvider } from "../src/hooks";
+import { BootstrapMessage } from "@repo/protocol-types";
 
 // Mock Solarflare with a basic Socket.io server.
 beforeAll(() => {
@@ -20,16 +21,16 @@ beforeAll(() => {
   io.on("connection", (socket) => {
     socket.on("subscribe", async () => {
       socket.emit("bootstrap", {
-        table: "myTable",
         info: {
-          schema: "public",
-          name: "myTable",
+          ref: {
+            schema: "public",
+            name: "myTable",
+          },
           pk: "id",
           rls: false,
         },
-        pk: "id",
         data: [{ id: 1, name: "hello" }],
-      });
+      } satisfies BootstrapMessage);
     });
   });
 

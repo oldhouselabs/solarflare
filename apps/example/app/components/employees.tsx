@@ -1,11 +1,12 @@
 "use client";
-import { createSolarflare, type DB } from "@solarflare/client";
+import { createSolarflare } from "@solarflare/client";
+import { type DB } from "../../types/db";
 
 const { useTable } = createSolarflare<DB>();
 
 export const Employees = () => {
   const { isLoading, data, optimistic } = useTable("employees", {
-    sort: (a, b) => a.name.localeCompare(b.name),
+    sort: (a, b) => a.name?.localeCompare(b.name ?? "") ?? 0,
   });
 
   if (isLoading) {

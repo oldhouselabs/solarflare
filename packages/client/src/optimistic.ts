@@ -27,5 +27,5 @@ export type OptimisticChange<Row extends DBRow> =
 
 export type OptimisticChangeForTable<
   DB extends { [table: string]: DBRow } = Record<string, never>,
-  Table extends Extract<keyof DB, string> = Extract<keyof DB, string>,
-> = OptimisticChange<DB[Table]> & { table: Table };
+  QualifiedTable extends Extract<keyof DB, string> = Extract<keyof DB, string>,
+> = OptimisticChange<DB[QualifiedTable]> & { table: QualifiedTable };

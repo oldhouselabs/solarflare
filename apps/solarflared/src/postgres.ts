@@ -1,6 +1,7 @@
 import pg from "pg";
 import { difference } from "./utils";
 import { logger } from "./logger";
+import { TableRef, asString } from "@repo/protocol-types";
 
 export const createClient = async (connectionString: string) => {
   const { Client } = pg;
@@ -42,8 +43,11 @@ const createPublication = async (client: pg.Client) => {
   console.log(`✅ created solarflare_realtime publication`);
 };
 
-const introspectPublishedTables = async (client: pg.Client) => {
+const introspectPublishedTables = async (
+  client: pg.Client
+): Promise<Map<string, TableRef>> => {
   const sql = `SELECT
+    n.nspname AS schema_name,
     r.relname AS table_name
 FROM
     pg_publication p
@@ -59,8 +63,15 @@ WHERE
 ORDER BY
     table_name;`;
 
-  const res = await client.query(sql, [PUBLICATION_NAME]);
-  return new Set(res.rows.map((row) => row.table_name as string));
+  const res = (
+    await client.query<{ schema_name: string; table_name: string }>(sql, [
+      PUBLICATION_NAME,
+    ])
+  ).rows
+    .map((t) => ({ name: t.table_name, schema: t.schema_name }))
+    .map((t) => [asString(t), t] as const);
+
+  return new Map(res);
 };
 
 export const ensurePublication = async (client: pg.Client) => {
@@ -103,16 +114,16 @@ export const ensureReplicationSlot = async (client: pg.Client) => {
 
 export const selectAllWithRls = async (
   client: pg.Client,
-  table: string,
+  tableRef: TableRef,
   rlsColumn: string | false,
   rlsKey: unknown
 ) => {
   if (rlsColumn === false) {
-    const res = await client.query(`SELECT * FROM "${table}"`);
+    const res = await client.query(`SELECT * FROM ${tableRef}`);
     return res.rows;
   } else {
     const res = await client.query(
-      `SELECT * FROM "${table}" WHERE "${rlsColumn}" = $1`,
+      `SELECT * FROM ${asString(tableRef, { renderPublic: true })} WHERE "${rlsColumn}" = $1`,
       [rlsKey]
     );
     return res.rows;
@@ -120,36 +131,43 @@ export const selectAllWithRls = async (
 };
 
 /**
- * Introspect the public schema and return information about all the tables.
+ * Introspect the database and return information about all the tables.
+ *
+ * Does not include system tables.
  */
-export const introspectPublicSchema = async (client: pg.Client) => {
-  const query = `SELECT table_name
+export const introspectTables = async (
+  client: pg.Client
+): Promise<TableRef[]> => {
+  const query = `SELECT table_name, table_schema
     FROM information_schema.tables
-    WHERE table_schema = 'public'
-    AND table_type = 'BASE TABLE';`;
+    WHERE table_type = 'BASE TABLE'
+    AND table_schema != 'information_schema'
+    AND table_schema != 'pg_catalog';`;
 
-  const res: { rows: { table_name: string }[] } = await client.query(query);
+  const res = await client.query<{ table_schema: string; table_name: string }>(
+    query
+  );
 
-  return res.rows.map((row) => row.table_name);
+  return res.rows.map((row) => ({
+    name: row.table_name,
+    schema: row.table_schema,
+  }));
 };
 
-export const introspectTable = async (client: pg.Client, tableName: string) => {
-  if (tableName.length === 0) {
-    throw new Error(`tableName cannot be empty string`);
-  }
-
+export const introspectTable = async (client: pg.Client, ref: TableRef) => {
   const query = `
       SELECT column_name, data_type, is_nullable
       FROM information_schema.columns
       WHERE table_name = $1
+      AND table_schema = $2
     `;
 
   const columnData = await client.query<{
     column_name: string;
     data_type: string;
     is_nullable: "YES" | "NO";
-  }>(query, [tableName]);
-  const primaryKey = await getPrimaryKey(client, "public", tableName);
+  }>(query, [ref.name, ref.schema]);
+  const primaryKey = await getPrimaryKey(client, ref);
 
   return {
     $meta: {
@@ -172,14 +190,19 @@ export const introspectTable = async (client: pg.Client, tableName: string) => {
  */
 export const reconcilePublicationTables = async (
   client: pg.Client,
-  current: Set<string>,
-  desired: Set<string>
+  current: Map<string, TableRef>,
+  desired: Map<string, TableRef>
 ) => {
-  const toRemove = difference(current, desired);
-  const toAdd = difference(desired, current);
+  const currentTables = new Set(current.keys());
+  const desiredTables = new Set(desired.keys());
+
+  console.log(currentTables, desiredTables);
+
+  const toRemove = difference(currentTables, desiredTables);
+  const toAdd = difference(desiredTables, currentTables);
 
   if (toAdd.size === 0 && toRemove.size === 0) {
-    console.log(
+    logger.info(
       `${PUBLICATION_NAME} publication already matches selection; nothing to update`
     );
     return;
@@ -191,7 +214,7 @@ export const reconcilePublicationTables = async (
     const addQuery = `ALTER PUBLICATION ${PUBLICATION_NAME} ADD TABLE ${Array.from(
       toAdd
     )
-      .map((table) => `"${table}"`)
+      .map((table) => `${table}`)
       .join(", ")}`;
     await client.query(addQuery);
     toAdd.forEach((table) => {
@@ -203,8 +226,9 @@ export const reconcilePublicationTables = async (
     const removeQuery = `ALTER PUBLICATION ${PUBLICATION_NAME} DROP TABLE ${Array.from(
       toRemove
     )
-      .map((table) => `"${table}"`)
+      .map((table) => `${table}`)
       .join(", ")}`;
+    logger.debug(removeQuery);
     await client.query(removeQuery);
     toRemove.forEach((table) => {
       logger.info(` - removed \`${table}\` table`);
@@ -219,7 +243,7 @@ export const reconcilePublicationTables = async (
  */
 export const introspectColumnsForTable = async (
   client: pg.Client,
-  table: string
+  table: TableRef
 ) => {
   const query = `SELECT 
     column_name,
@@ -232,14 +256,14 @@ export const introspectColumnsForTable = async (
 FROM 
     information_schema.columns
 WHERE 
-    table_schema = 'public' AND 
-    table_name = $1;`;
+    table_schema = $1 AND 
+    table_name = $2;`;
 
   const res = await client.query<{
     column_name: string;
     data_type: string;
     is_nullable: "YES" | "NO";
-  }>(query, [table]);
+  }>(query, [table.schema, table.name]);
 
   return res.rows;
 };
@@ -253,11 +277,7 @@ export class CompositePrimaryKeyError extends Error {
 /**
  * Introspect the database to find the primary key column for a given table.
  */
-export const getPrimaryKey = async (
-  client: pg.Client,
-  schema: string,
-  table: string
-) => {
+export const getPrimaryKey = async (client: pg.Client, ref: TableRef) => {
   const query = `SELECT
     kcu.column_name
 FROM
@@ -271,8 +291,8 @@ WHERE
     AND tc.table_schema = $2;`;
 
   const res = await client.query<{ column_name: string }>(query, [
-    table,
-    schema,
+    ref.name,
+    ref.schema,
   ]);
 
   if (res.rows.length === 0) {

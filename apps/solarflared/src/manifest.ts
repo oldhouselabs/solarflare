@@ -4,9 +4,14 @@ import { z } from "zod";
 import { format } from "./zodErrors";
 import { logger } from "./logger";
 
+const tableRefSchema = z.object({
+  schema: z.string().min(1),
+  name: z.string().min(1),
+});
+
 export const manifestSchema = z.object({
   tables: z
-    .object({ name: z.string(), rls: z.string().or(z.literal(false)) })
+    .object({ ref: tableRefSchema, rls: z.string().or(z.literal(false)) })
     .array(),
   auth: z
     .object({

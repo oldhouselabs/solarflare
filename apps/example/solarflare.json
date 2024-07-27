@@ -1,7 +1,10 @@
 {
   "tables": [
     {
-      "name": "employees",
+      "ref": {
+        "schema": "public",
+        "name": "employees"
+      },
       "rls": "user_id"
     }
   ],

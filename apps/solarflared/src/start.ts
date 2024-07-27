@@ -8,13 +8,19 @@ import { Server } from "socket.io";
 import { createServer } from "node:http";
 import jwt from "jsonwebtoken";
 
-import { type BootstrapMessage } from "@repo/protocol-types";
+import {
+  asString,
+  subscribeMessageZ,
+  TableRef,
+  type BootstrapMessage,
+} from "@repo/protocol-types";
 
 import { createClient, selectAllWithRls, SLOT_NAME } from "./postgres";
 import { loadManifest, validateManifestAuth } from "./manifest";
 import { format } from "./zodErrors";
 import { logger } from "./logger";
-import { buildTableInfoMap } from "./table_info";
+import { buildTableStructure } from "./table_info";
+import { table } from "node:console";
 
 const envSchema = z.object({
   DB_CONNECTION_STRING: z.string().min(1),
@@ -24,15 +30,6 @@ const envSchema = z.object({
     .default("54321")
     .transform(Number),
   JWT_SECRET_KEY: z.string(),
-});
-
-/**
- * A message requesting an ongoing subscription to a table.
- */
-const dataSubscription = z.object({
-  queryId: z.string(),
-  table: z.string().min(1),
-  jwt: z.string(),
 });
 
 export const start = async (): Promise<void> => {
@@ -55,7 +52,7 @@ export const start = async (): Promise<void> => {
   const client = await createClient(env.DB_CONNECTION_STRING);
   logger.debug(`connected to database`);
 
-  const liveTables = await buildTableInfoMap(client, manifest);
+  const liveTables = await buildTableStructure(client, manifest);
   logger.debug(`live tables: ${JSON.stringify([...liveTables], null, 2)}`);
 
   const service = new LogicalReplicationService(
@@ -96,7 +93,7 @@ export const start = async (): Promise<void> => {
 
     socket.on("subscribe", async (msg) => {
       logger.debug(`received subscribe message: ${JSON.stringify(msg)}`);
-      const parsed = await dataSubscription.safeParseAsync(JSON.parse(msg));
+      const parsed = await subscribeMessageZ.safeParseAsync(msg);
 
       if (!parsed.success) {
         logger.error(format(parsed.error), "invalid `subscribe` message.");
@@ -126,12 +123,12 @@ export const start = async (): Promise<void> => {
       logger.debug(`JWT claims: ${JSON.stringify(claims)}`);
 
       // Retrieve information about the live table being subscribed to.
-      const manifestTable = liveTables.get(data.table);
+      const manifestTable = liveTables.get(data.ref);
       if (manifestTable === undefined) {
         // Attempts to subscribe to tables we don't know about are silently
         // dropped.
         logger.error(
-          `attempted to subscribe to ${data.table}, which is not specified in solarflare.json`
+          `attempted to subscribe to ${asString(data.ref)}, which is not specified in solarflare.json`
         );
         return;
       }
@@ -153,12 +150,11 @@ export const start = async (): Promise<void> => {
       const rlsKey = manifestTable.rls && claims[manifest.auth!.claim];
       logger.debug(`RLS key: ${rlsKey}`);
 
-      const socketSubscription =
-        manifestTable.rls !== false ? `${data.table}.${rlsKey}` : data.table;
-      logger.debug(`socket subscription: ${socketSubscription}`);
+      const socketSubName = socketRoom(data.ref, rlsKey);
+      logger.debug(`socket sub name: ${socketSubName}`);
 
-      socket.join(socketSubscription);
-      logger.debug(`client joined room: ${socketSubscription}`);
+      socket.join(socketSubName);
+      logger.debug(`client joined room: ${socketSubName}`);
 
       // Now that this socket is subscribed to data change events, we
       // send the current state.
@@ -167,15 +163,13 @@ export const start = async (): Promise<void> => {
       // any change events since this state afterwards.
       const bootstrapResults = await selectAllWithRls(
         client,
-        data.table,
+        data.ref,
         manifestTable.rls,
         rlsKey
       );
 
       socket.emit("bootstrap", {
-        table: data.table,
         info: manifestTable,
-        pk: manifestTable.pk,
         data: bootstrapResults,
       } satisfies BootstrapMessage);
       logger.debug(`sent bootstrap data to client`);
@@ -190,27 +184,24 @@ export const start = async (): Promise<void> => {
     logger.debug(`received logical replication data: ${JSON.stringify(log)}`);
 
     for (const change of log.change) {
-      // TODO: support non-public schemas
-      if (change.schema !== "public") {
-        logger.debug(
-          `skipping change event in non-public schema: ${change.schema}`
-        );
-        continue;
-      }
-      const tableName = change.table;
-      const manifestTable = liveTables.get(tableName);
+      const tableRef = {
+        schema: change.schema,
+        name: change.table,
+      };
+
+      const manifestTable = liveTables.get(tableRef);
       if (manifestTable === undefined) {
         // It is possible that the Postgres logical replication subscription
         // has been configured to emit changes for more than just the live tables
         // we are meant to be serving. In this case, we should silently drop the
         // change.
         logger.debug(
-          `skipping change event for table ${tableName} not in solarflare.json`
+          `skipping change event for table ${asString(tableRef)} not in solarflare.json`
         );
         return;
       }
       const rlsColumn = manifestTable.rls;
-      logger.debug(`change event for table: ${tableName}`);
+      logger.debug(`change event for table: ${asString(tableRef)}`);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- TODO: fix
       const o: any = {};
@@ -264,11 +255,18 @@ export const start = async (): Promise<void> => {
         }
       }
 
+      if (rlsColumn !== false && !Object.hasOwn(o, rlsColumn)) {
+        logger.error(
+          `change event does not specify the required RLS column \`${rlsColumn}\``
+        );
+        return;
+      }
+
       const rlsKey = rlsColumn && o[rlsColumn];
       logger.debug(`RLS key for data change event: ${rlsKey}`);
       const socketSubscription = rlsColumn
-        ? `${manifestTable.name}.${rlsKey}`
-        : manifestTable.name;
+        ? `${asString(manifestTable.ref, { renderPublic: true })}.${rlsKey}`
+        : asString(manifestTable.ref, { renderPublic: true });
       logger.debug(
         `socket subscription for data change event: ${socketSubscription}`
       );
@@ -295,4 +293,11 @@ export const start = async (): Promise<void> => {
 
   // Return a never-fulfilled promise.
   return new Promise((_res, _rej) => {});
+};
+
+const socketRoom = (tableRef: TableRef, rlsKey: string | undefined) => {
+  const opts = { renderPublic: true };
+  return rlsKey
+    ? `${asString(tableRef, opts)}.${rlsKey}`
+    : asString(tableRef, opts);
 };

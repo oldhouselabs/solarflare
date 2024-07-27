@@ -4,17 +4,17 @@
 
 import pg from "pg";
 
-import { type TableInfo } from "@repo/protocol-types";
+import { Tables, asString, type TableInfo } from "@repo/protocol-types";
 
 import { logger } from "./logger";
 import { Manifest } from "./manifest";
 import { CompositePrimaryKeyError, getPrimaryKey } from "./postgres";
 
-export const buildTableInfoMap = async (
+export const buildTableStructure = async (
   client: pg.Client,
   manifest: Manifest
-): Promise<Map<string, TableInfo>> => {
-  const tableInfoMap = new Map<string, TableInfo>();
+): Promise<Tables<TableInfo>> => {
+  const tableInfoMap = new Tables<TableInfo>();
 
   for (const table of manifest.tables) {
     let tableInfo: TableInfo;
@@ -24,7 +24,7 @@ export const buildTableInfoMap = async (
 
       if (tableInfoRaw.pk === undefined) {
         logger.error(
-          `table ${table.name} does not have a primary key, which is not supported`
+          `table ${asString(table.ref)} does not have a primary key, which is not supported`
         );
         process.exit(1);
       }
@@ -40,7 +40,7 @@ export const buildTableInfoMap = async (
         throw e;
       }
     }
-    tableInfoMap.set(table.name, tableInfo);
+    tableInfoMap.set(table.ref, tableInfo);
   }
 
   return tableInfoMap;
@@ -51,10 +51,9 @@ const getTableInfo = async (
   table: Manifest["tables"][0]
 ) => {
   // TODO: support non-public schemas
-  const pk = await getPrimaryKey(client, "public", table.name);
+  const pk = await getPrimaryKey(client, table.ref);
   return {
-    schema: "public",
-    name: table.name,
+    ref: table.ref,
     rls: table.rls,
     pk,
   };

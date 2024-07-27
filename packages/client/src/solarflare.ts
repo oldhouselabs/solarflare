@@ -1,19 +1,32 @@
-// Socket.io client that connects to the backend and accepts
-// generic types as produced by the `solarflare introspect`
-// command, to produce a strongly typed client.
+/**
+ * Socket.io client that connects to the backend and accepts generic types as
+ * produced by the `solarflare introspect` command, to produce a strongly typed
+ * client.
+ */
 
 import { io, Socket } from "socket.io-client";
 import { v4 as uuid } from "uuid";
 
 import {
+  asString,
   DBRow,
-  InferPkType,
-  TableInfo,
+  refFromQualifiedName,
+  SubscribeMessage,
+  TableRef,
+  Tables,
   type BootstrapMessage,
 } from "@repo/protocol-types";
 
 export * from "./hooks";
 import { OptimisticChangeForTable } from "./optimistic";
+import {
+  Slot,
+  SlotDeleted,
+  SlotInserted,
+  SlotNormal,
+  SlotUpdated,
+  TableState,
+} from "./tables";
 
 /**
  * A change event from Postgres.
@@ -62,62 +75,6 @@ interface Pk {
   pktypes: string[];
 }
 
-/**
- * Represents a slot that reflects the latest known server value, with no optimistic updates.
- */
-export type SlotNormal<T> = {
-  status: "normal";
-  /**
-   * The latest known server value.
-   */
-  value: T;
-};
-
-/**
- * Represents a slot that has had an optimistic update.
- */
-export type SlotUpdated<T> = {
-  status: "updated";
-  /**
-   * The latest known server value.
-   */
-  value: T;
-  /**
-   * The value after the optimistic update.
-   */
-  override: T;
-};
-
-/**
- * Represents a slot that has been deleted.
- */
-export type SlotDeleted<T> = {
-  status: "deleted";
-  /**
-   * The latest known server value.
-   */
-  value: T;
-};
-
-/**
- * Represents a slot that has been inserted optimistically.
- *
- * Such a slot does not correspond to a server value.
- */
-export type SlotInserted<T> = {
-  status: "inserted";
-  /**
-   * The value after the optimistic insert.
-   */
-  override: T;
-};
-
-type Slot<T> =
-  | SlotNormal<T>
-  | SlotUpdated<T>
-  | SlotDeleted<T>
-  | SlotInserted<T>;
-
 function serverValue<T>(
   slot: SlotNormal<T> | SlotUpdated<T> | SlotDeleted<T>
 ): T;
@@ -136,11 +93,6 @@ function serverValue<T>(slot: Slot<T>): T | undefined {
   const _: never = slot;
 }
 
-export type Table<R extends DBRow = DBRow> = Map<
-  InferPkType<R>,
-  Slot<R["$fields"]>
->;
-
 /**
  * A subscriber is a function that can be called to notify a component that
  * the data it is displaying has changed.
@@ -149,19 +101,11 @@ type Subscriber = () => void;
 
 // TODO: make `Table` a class, and move `notify` to a method on the class.
 export const notify = (subscribers: Set<Subscriber>) => {
+  console.log(`notifying ${subscribers.size}`, subscribers);
   for (const notify of subscribers) {
     notify();
   }
 };
-
-type TableState<Row extends DBRow = DBRow> =
-  | {
-      status: "ready";
-      info: TableInfo<Row["$meta"]["pk"]>;
-      data: Table<Row>;
-      subscribers: Set<Subscriber>;
-    }
-  | { status: "loading"; queryId: string; subscribers: Set<Subscriber> };
 
 export class Solarflare<
   DB extends { [table: string]: DBRow } = Record<string, never>,
@@ -174,7 +118,10 @@ export class Solarflare<
    */
   #jwt: string;
 
-  tables: Map<string, TableState> = new Map();
+  /**
+   * Structure storing tables scoped by schema.
+   */
+  tables: Tables<TableState<DBRow, Subscriber>> = new Tables();
 
   constructor(solarflareUrl: string, jwt: string) {
     this.#socket = io(solarflareUrl, {
@@ -200,30 +147,32 @@ export class Solarflare<
     this.#socket.on(
       "bootstrap",
       <PK extends string | undefined>(msg: BootstrapMessage<PK>) => {
-        const tableName = msg.table;
+        const tableRef = msg.info.ref;
 
-        const localTable = this.tables.get(tableName);
-        if (localTable === undefined) {
+        const table = this.tables.get(tableRef);
+        if (table === undefined) {
           throw new Error(
             "shouldn't receive bootstrap for a table we didn't request"
           );
         }
 
-        if (localTable.status !== "loading") {
+        if (table.status !== "loading") {
+          // TODO: maybe it's fine to do the bootstrap again.
           return;
         }
 
-        const subscribers = localTable.subscribers;
+        const subscribers = table.subscribers;
+        console.log("subscribers", subscribers);
 
         const data = new Map();
-        if (msg.pk !== undefined) {
+        if (msg.info.pk !== undefined) {
           for (const row of msg.data) {
             const slot = { status: "normal", value: row };
-            data.set(row[msg.pk], slot);
+            data.set(row[msg.info.pk], slot);
           }
         }
 
-        this.tables.set(tableName, {
+        this.tables.set(tableRef, {
           status: "ready",
           info: msg.info,
           data,
@@ -246,20 +195,17 @@ export class Solarflare<
   handleReconnect() {
     // TODO: ideally there should be a `catch-up` message rather than
     // re-bootstrapping all tables. Requires complex server logic though.
-    for (const [tableName, localTable] of this.tables) {
-      if (localTable.status === "ready") {
+    for (const { ref, value } of this.tables) {
+      if (value.status === "ready") {
         const queryId = uuid();
-        this.#socket.emit(
-          "subscribe",
-          JSON.stringify({
-            queryId,
-            table: tableName,
-            jwt: this.#jwt,
-          })
-        );
-        console.log(`Re-bootstrapping table ${tableName}`);
-        this.tables.set(tableName, {
-          ...localTable,
+        this.#socket.emit("subscribe", {
+          queryId,
+          ref,
+          jwt: this.#jwt,
+        } satisfies SubscribeMessage);
+        console.log(`Re-bootstrapping table ${asString(ref)}`);
+        this.tables.set(ref, {
+          ...value,
           status: "loading",
           queryId,
         });
@@ -267,30 +213,20 @@ export class Solarflare<
     }
   }
 
-  table<K extends Extract<keyof DB, string>>(
-    tableName: K
-  ): TableState<DB[K]> | undefined {
-    const localTable = this.tables.get(tableName);
-    if (localTable === undefined) {
-      return undefined;
-    }
-
-    if (localTable.status !== "ready") {
-      return undefined;
-    }
-
-    return localTable as TableState<DB[K]>;
-  }
-
   setJwt(jwt: string) {
     this.#jwt = jwt;
   }
 
   handleChange(change: Change) {
-    const tableName = change.table;
-    const localTable = this.table(tableName as Extract<keyof DB, string>);
+    const tableRef = {
+      schema: change.schema,
+      name: change.table,
+    };
+    const localTable = this.tables.get(tableRef);
     if (localTable === undefined) {
-      console.error(`change received on untracked table \`${tableName}\``);
+      console.error(
+        `change received on untracked table \`${asString(tableRef)}\``
+      );
       return;
     }
 
@@ -343,45 +279,34 @@ export class Solarflare<
     notify(localTable.subscribers);
   }
 
-  subscribe(tableName: string, notify: () => void) {
-    const queryId = uuid();
-    const localTable = this.tables.get(tableName);
-
-    if (localTable !== undefined) {
-      switch (localTable.status) {
-        case "ready":
-          localTable.subscribers.add(notify);
-          return;
-        case "loading":
-          localTable.subscribers.add(notify);
-          return;
-        default: {
-          // Exhaustiveness check.
-          const _: never = localTable;
-        }
-      }
+  subscribe(tableRef: TableRef, notify: () => void) {
+    console.log("subscribing to", tableRef);
+    const table = this.tables.get(tableRef);
+    if (table !== undefined) {
+      table.subscribers.add(notify);
     } else {
-      this.tables.set(tableName, {
+      const queryId = uuid();
+      this.tables.set(tableRef, {
         status: "loading",
         subscribers: new Set([notify]),
         queryId,
       });
+      console.log(this.tables.get(tableRef));
 
-      this.#socket.emit(
-        "subscribe",
-        JSON.stringify({
-          queryId,
-          table: tableName,
-          jwt: this.#jwt,
-        })
-      );
+      this.#socket.emit("subscribe", {
+        queryId,
+        ref: tableRef,
+        jwt: this.#jwt,
+      } satisfies SubscribeMessage);
     }
   }
 
   optimistic<T extends Extract<keyof DB, string> = Extract<keyof DB, string>>(
     change: OptimisticChangeForTable<DB, T>
   ) {
-    const table = this.table(change.table);
+    const ref = refFromQualifiedName(change.table);
+
+    const table = this.tables.get(ref);
     if (table === undefined) {
       console.error(`optimistic change on untracked table \`${change.table}\``);
       return;
@@ -400,6 +325,8 @@ export class Solarflare<
 
     switch (change.action) {
       case "insert": {
+        table;
+        // @ts-ignore
         const pk = change[table.info.pk];
         const { data } = change;
 
@@ -415,6 +342,7 @@ export class Solarflare<
       }
 
       case "update": {
+        // @ts-ignore
         const pk = change[table.info.pk];
         if (pk === undefined) {
           console.error(`update on row with missing PK`);
@@ -445,6 +373,7 @@ export class Solarflare<
       }
 
       case "delete": {
+        // @ts-ignore
         const pk = change[table.info.pk];
         if (pk === undefined) {
           console.error(`update on row with missing PK`);
@@ -480,19 +409,19 @@ export class Solarflare<
   }
 
   clearOverride<Table extends Extract<keyof DB, string>>({
-    table,
+    ref,
     pk,
   }: {
-    table: Table;
+    ref: TableRef;
     pk: DB[Table]["$fields"][DB[Table]["$meta"]["pk"]];
   }) {
-    const localTable = this.table(table);
+    const localTable = this.tables.get(ref);
     if (localTable === undefined) {
-      console.error(`clearOverride on untracked table \`${table}\``);
+      console.error(`clearOverride on untracked table \`${asString(ref)}\``);
       return;
     }
     if (localTable.status === "loading") {
-      console.error(`clearOverride on loading table \`${table}\``);
+      console.error(`clearOverride on loading table \`${asString(ref)}\``);
       return;
     }
 

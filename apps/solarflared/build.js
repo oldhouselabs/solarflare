@@ -1,10 +1,12 @@
-const { build } = require("esbuild");
+const esbuild = require("esbuild");
 
-build({
+const ctx = esbuild.context({
   entryPoints: ["src/index.ts"],
   bundle: true,
   platform: "node",
   outdir: "dist",
   target: ["node16"],
   format: "cjs",
-}).catch(() => process.exit(1));
+});
+
+(async () => (await ctx).watch())();

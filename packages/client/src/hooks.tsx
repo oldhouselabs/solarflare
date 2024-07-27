@@ -1,15 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import {
-  SlotInserted,
-  SlotNormal,
-  SlotUpdated,
-  Solarflare,
-  notify,
-} from "./solarflare";
+import { Solarflare, notify } from "./solarflare";
 import { OptimisticChange } from "./optimistic";
-import { DBRow } from "@repo/protocol-types";
+import { DBRow, TableRef, refFromQualifiedName } from "@repo/protocol-types";
+import { SlotInserted, SlotNormal, SlotUpdated } from "./tables";
 
 /**
  * Utility hook to trigger re-renders.
@@ -71,10 +66,13 @@ export const createSolarflare = <
   ): UseTable<DB[KInput]> => {
     type V = DB[KInput]["$fields"];
 
+    console.log("useTable", tableName);
+
     const rerender = useRerender();
 
     const sf = useContext(Context) as Solarflare<DB>;
-    const tableEntry = sf?.table(tableName);
+    const tableRef = refFromQualifiedName(tableName);
+    const tableEntry = sf?.tables.get(tableRef);
 
     useEffect(() => {
       if (sf === undefined) {
@@ -83,14 +81,12 @@ export const createSolarflare = <
         );
       }
 
-      if (tableEntry === undefined || tableEntry.status === "loading") {
-        sf.subscribe(tableName, rerender);
-      }
+      sf.subscribe(tableRef, rerender);
 
       return () => {
         // TODO: unsubscribe
       };
-    }, [tableName, tableEntry, rerender, sf]);
+    }, [tableRef, rerender, sf]);
 
     if (tableEntry === undefined || tableEntry?.status === "loading") {
       return { isLoading: true, data: undefined, optimistic: undefined };
@@ -123,12 +119,13 @@ export const createSolarflare = <
 
     const optimistic = (change: OptimisticChange<DB[KInput]>) => {
       const pk = tableEntry.info.pk;
+      // @ts-ignore
       const pkValue = change[pk];
       sf.optimistic({ ...change, table: tableName });
 
       const rollback = () => {
-        sf.clearOverride({ table: tableName, pk: pkValue });
-        const table = sf.table(tableName);
+        sf.clearOverride({ ref: tableEntry.info.ref, pk: pkValue });
+        const table = sf.tables.get(tableEntry.info.ref);
         table && notify(table.subscribers);
       };
 
