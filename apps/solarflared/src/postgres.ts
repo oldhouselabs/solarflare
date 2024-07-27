@@ -146,19 +146,20 @@ export const selectAllWithRls = async (
   rlsColumn: string | false,
   rlsKey: unknown
 ) => {
-  if (rlsColumn === false) {
-    try {
+  try {
+    // In the main try block, we catch and report Postgres errors, and then re-throw
+    // them (exit flag is not set). We then catch them in the trailing catch block
+    // to ensure this function cannot kill the Solarflare process; we return an
+    // empty array in that case.
+
+    if (rlsColumn === false) {
       const res = await client.query(`SELECT * FROM ${tableRef}`).catch(
         handleQueryError({
           msg: `Error selecting all rows from table ${asString(tableRef)}`,
         })
       );
       return res.rows;
-    } catch (_: unknown) {
-      return;
-    }
-  } else {
-    try {
+    } else {
       const res = await client
         .query(
           `SELECT * FROM ${asString(tableRef, { renderPublic: true })} WHERE "${rlsColumn}" = $1`,
@@ -170,9 +171,9 @@ export const selectAllWithRls = async (
           })
         );
       return res.rows;
-    } catch (_: unknown) {
-      return;
     }
+  } catch (_: unknown) {
+    return [];
   }
 };
 
