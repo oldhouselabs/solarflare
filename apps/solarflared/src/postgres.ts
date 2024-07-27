@@ -12,13 +12,24 @@ export const createClient = async (connectionString: string) => {
   return client;
 };
 
+type HandleQueryErrorOpts = {
+  exit?: boolean;
+  msg?: string;
+};
+
 export const verifyWalLevel = async (client: pg.Client) => {
-  const res = await client.query(`SHOW wal_level;`);
-  const walLevel = res.rows[0].wal_level;
+  const res = await client
+    .query<{ wal_level: string }>(`SHOW wal_level;`)
+    .catch(handleQueryError({ exit: true }));
+
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- Always present
+  const walLevel = res.rows[0]!.wal_level;
   const isLogical = walLevel === "logical";
   if (!isLogical) {
     const configFile = (
-      await client.query<{ config_file: string }>(`SHOW config_file;`)
+      await client
+        .query<{ config_file: string }>(`SHOW config_file;`)
+        .catch(handleQueryError({ exit: true }))
     ).rows[0]?.config_file;
 
     const configFileMessage =
@@ -39,16 +50,17 @@ export const verifyWalLevel = async (client: pg.Client) => {
 
 const PUBLICATION_NAME = "solarflare_realtime";
 const checkPublicationExists = async (client: pg.Client) => {
-  const res = await client.query(
-    `SELECT 1 FROM pg_catalog.pg_publication WHERE pubname = $1;`,
-    [PUBLICATION_NAME]
-  );
+  const res = await client
+    .query(`SELECT 1 FROM pg_catalog.pg_publication WHERE pubname = $1;`, [
+      PUBLICATION_NAME,
+    ])
+    .catch(handleQueryError({ exit: true }));
   return res.rows.length === 1;
 };
 
 const createPublication = async (client: pg.Client) => {
   const sql = `CREATE PUBLICATION ${PUBLICATION_NAME} WITH (publish = 'insert, update, delete');`;
-  await client.query(sql);
+  await client.query(sql).catch(handleQueryError({ exit: true }));
   console.log(`✅ created solarflare_realtime publication`);
 };
 
@@ -73,9 +85,12 @@ ORDER BY
     table_name;`;
 
   const res = (
-    await client.query<{ schema_name: string; table_name: string }>(sql, [
-      PUBLICATION_NAME,
-    ])
+    await client
+      .query<{
+        schema_name: string;
+        table_name: string;
+      }>(sql, [PUBLICATION_NAME])
+      .catch(handleQueryError({ exit: true }))
   ).rows
     .map((t) => ({ name: t.table_name, schema: t.schema_name }))
     .map((t) => [asString(t), t] as const);
@@ -95,21 +110,25 @@ export const ensurePublication = async (client: pg.Client) => {
 
 export const SLOT_NAME = "solarflared";
 const checkReplicationSlotExists = async (client: pg.Client) => {
-  const res = await client.query(
-    `SELECT * FROM pg_replication_slots 
+  const res = await client
+    .query(
+      `SELECT * FROM pg_replication_slots 
        WHERE slot_name = $1 
        AND plugin = 'wal2json'
        AND slot_type = 'logical';`,
-    [SLOT_NAME]
-  );
+      [SLOT_NAME]
+    )
+    .catch(handleQueryError({ exit: true }));
   return res.rowCount === 1;
 };
 
 const createReplicationSlot = async (client: pg.Client) => {
-  await client.query(
-    `SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json');`,
-    [SLOT_NAME]
-  );
+  await client
+    .query(
+      `SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json');`,
+      [SLOT_NAME]
+    )
+    .catch(handleQueryError({ exit: true }));
 };
 
 export const ensureReplicationSlot = async (client: pg.Client) => {
@@ -128,14 +147,32 @@ export const selectAllWithRls = async (
   rlsKey: unknown
 ) => {
   if (rlsColumn === false) {
-    const res = await client.query(`SELECT * FROM ${tableRef}`);
-    return res.rows;
+    try {
+      const res = await client.query(`SELECT * FROM ${tableRef}`).catch(
+        handleQueryError({
+          msg: `Error selecting all rows from table ${asString(tableRef)}`,
+        })
+      );
+      return res.rows;
+    } catch (_: unknown) {
+      return;
+    }
   } else {
-    const res = await client.query(
-      `SELECT * FROM ${asString(tableRef, { renderPublic: true })} WHERE "${rlsColumn}" = $1`,
-      [rlsKey]
-    );
-    return res.rows;
+    try {
+      const res = await client
+        .query(
+          `SELECT * FROM ${asString(tableRef, { renderPublic: true })} WHERE "${rlsColumn}" = $1`,
+          [rlsKey]
+        )
+        .catch(
+          handleQueryError({
+            msg: `Error selecting all rows from table ${asString(tableRef)}`,
+          })
+        );
+      return res.rows;
+    } catch (_: unknown) {
+      return;
+    }
   }
 };
 
@@ -153,9 +190,9 @@ export const introspectTables = async (
     AND table_schema != 'information_schema'
     AND table_schema != 'pg_catalog';`;
 
-  const res = await client.query<{ table_schema: string; table_name: string }>(
-    query
-  );
+  const res = await client
+    .query<{ table_schema: string; table_name: string }>(query)
+    .catch(handleQueryError({ exit: true }));
 
   return res.rows.map((row) => ({
     name: row.table_name,
@@ -171,11 +208,13 @@ export const introspectTable = async (client: pg.Client, ref: TableRef) => {
       AND table_schema = $2
     `;
 
-  const columnData = await client.query<{
-    column_name: string;
-    data_type: string;
-    is_nullable: "YES" | "NO";
-  }>(query, [ref.name, ref.schema]);
+  const columnData = await client
+    .query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: "YES" | "NO";
+    }>(query, [ref.name, ref.schema])
+    .catch(handleQueryError({ exit: true }));
   const primaryKey = await getPrimaryKey(client, ref);
 
   return {
@@ -223,7 +262,7 @@ export const reconcilePublicationTables = async (
     )
       .map((table) => `${table}`)
       .join(", ")}`;
-    await client.query(addQuery);
+    await client.query(addQuery).catch(handleQueryError({ exit: true }));
     toAdd.forEach((table) => {
       logger.info(` - added \`${table}\` table`);
     });
@@ -236,7 +275,7 @@ export const reconcilePublicationTables = async (
       .map((table) => `${table}`)
       .join(", ")}`;
     logger.debug(removeQuery);
-    await client.query(removeQuery);
+    await client.query(removeQuery).catch(handleQueryError({ exit: true }));
     toRemove.forEach((table) => {
       logger.info(` - removed \`${table}\` table`);
     });
@@ -266,11 +305,13 @@ WHERE
     table_schema = $1 AND 
     table_name = $2;`;
 
-  const res = await client.query<{
-    column_name: string;
-    data_type: string;
-    is_nullable: "YES" | "NO";
-  }>(query, [table.schema, table.name]);
+  const res = await client
+    .query<{
+      column_name: string;
+      data_type: string;
+      is_nullable: "YES" | "NO";
+    }>(query, [table.schema, table.name])
+    .catch(handleQueryError({ exit: true }));
 
   return res.rows;
 };
@@ -319,5 +360,26 @@ export const setReplicaIdentity = async (
   identity: "DEFAULT" | "FULL" | "NOTHING"
 ) => {
   const sql = `ALTER TABLE ${asString(tableRef, { renderPublic: true })} REPLICA IDENTITY ${identity}`;
-  await client.query(sql);
+  await client.query(sql).catch(handleQueryError({ exit: true }));
+};
+
+export const logPgError = (err: pg.DatabaseError) => {
+  logger.error(`Postgres error: ${err.message} (code: ${err.code})`);
+  logger.debug(err.stack);
+};
+
+const handleQueryError = (opts?: HandleQueryErrorOpts) => (err: Error) => {
+  console.log(typeof err);
+  if (err instanceof pg.DatabaseError) {
+    logPgError(err);
+  } else {
+    const msg = opts?.msg ?? "Error executing query";
+    logger.error(`${msg}: ${err}`);
+  }
+
+  if (opts?.exit) {
+    process.exit(1);
+  } else {
+    throw err;
+  }
 };
