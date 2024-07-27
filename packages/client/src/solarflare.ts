@@ -102,7 +102,6 @@ type Subscriber = () => void;
 
 // TODO: make `Table` a class, and move `notify` to a method on the class.
 export const notify = (subscribers: Set<Subscriber>) => {
-  console.log(`notifying ${subscribers.size}`, subscribers);
   for (const notify of subscribers) {
     notify();
   }
