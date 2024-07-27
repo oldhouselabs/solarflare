@@ -7,6 +7,7 @@ import {
   introspectTables,
   verifyWalLevel,
   introspectColumnsForTable,
+  setReplicaIdentity,
 } from "./postgres";
 import { checkbox, input, select } from "@inquirer/prompts";
 import fs from "node:fs/promises";
@@ -14,6 +15,7 @@ import path from "node:path";
 import { manifestSchema } from "./manifest";
 import { format } from "./zodErrors";
 import { asString } from "@repo/protocol-types";
+import { logger } from "./logger";
 
 const envSchema = z.object({
   DB_CONNECTION_STRING: z.string().min(1),
@@ -127,6 +129,18 @@ export const init = async () => {
     publishedTables,
     new Map(tableChoices.map((t) => [asString(t), t]))
   );
+
+  // Ensure that the replica identity is set to FULL for all selected tables.
+  // Without this, DELETE operations cannot be broadcast to clients because they
+  // will not, in general, contain the RLS column in the change event, and we
+  // cannot determine who to send them to.
+  // This is a suboptimal situation, because it makes the replication process
+  // less efficient. It may be possible to improve when we have replication
+  // handled with a custom Postgres table.
+  for (const ref of tableChoices) {
+    await setReplicaIdentity(client, ref, "FULL");
+    logger.info(`✅ set replica identity for \`${asString(ref)}\` to FULL`);
+  }
 
   const manifest = {
     tables: tableChoices.map((c) => ({

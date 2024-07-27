@@ -302,3 +302,13 @@ WHERE
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- Checked above
   return res.rows[0]!.column_name;
 };
+
+export const setReplicaIdentity = async (
+  client: pg.Client,
+  tableRef: TableRef,
+  // We don't support USING INDEX yet
+  identity: "DEFAULT" | "FULL" | "NOTHING"
+) => {
+  const sql = `ALTER TABLE ${asString(tableRef, { renderPublic: true })} REPLICA IDENTITY ${identity}`;
+  await client.query(sql);
+};
