@@ -163,7 +163,6 @@ export class Solarflare<
         }
 
         const subscribers = table.subscribers;
-        console.log("subscribers", subscribers);
 
         const data = new Map();
         if (msg.info.pk !== undefined) {
@@ -281,7 +280,6 @@ export class Solarflare<
   }
 
   subscribe(tableRef: TableRef, notify: () => void) {
-    console.log("subscribing to", tableRef);
     const table = this.tables.get(tableRef);
     if (table !== undefined) {
       table.subscribers.add(notify);

@@ -66,8 +66,6 @@ export const createSolarflare = <
   ): UseTable<DB[KInput]> => {
     type V = DB[KInput]["$fields"];
 
-    console.log("useTable", tableName);
-
     const rerender = useRerender();
 
     const sf = useContext(Context) as Solarflare<DB>;
