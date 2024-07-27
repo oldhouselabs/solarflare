@@ -17,9 +17,18 @@ export const verifyWalLevel = async (client: pg.Client) => {
   const walLevel = res.rows[0].wal_level;
   const isLogical = walLevel === "logical";
   if (!isLogical) {
+    const configFile = (
+      await client.query<{ config_file: string }>(`SHOW config_file;`)
+    ).rows[0]?.config_file;
+
+    const configFileMessage =
+      configFile === undefined
+        ? "your postgresql.conf (find the file location with `SHOW config_file;`)"
+        : configFile;
+
     logger.error(
       `\`wal_level\` for this database is \`${walLevel}\` but solarflared requires \`logical\`
-        To switch to logical replication, edit \`postgresql.conf\` (find the file location with \`SHOW config_file;\`)
+        To switch to logical replication, edit ${configFileMessage}
         and set \`wal_level = logical\`. Then restart your Postgres server.
         `
     );
