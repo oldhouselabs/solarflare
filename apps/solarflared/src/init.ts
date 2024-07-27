@@ -61,7 +61,6 @@ export const init = async () => {
 
   // Introspect the available non-system tables
   const tables = await introspectTables(client);
-  console.log(tables);
 
   const tableChoices = await checkbox({
     message:

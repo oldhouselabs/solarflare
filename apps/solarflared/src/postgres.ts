@@ -196,8 +196,6 @@ export const reconcilePublicationTables = async (
   const currentTables = new Set(current.keys());
   const desiredTables = new Set(desired.keys());
 
-  console.log(currentTables, desiredTables);
-
   const toRemove = difference(currentTables, desiredTables);
   const toAdd = difference(desiredTables, currentTables);
 
