@@ -370,7 +370,6 @@ export const logPgError = (err: pg.DatabaseError) => {
 };
 
 const handleQueryError = (opts?: HandleQueryErrorOpts) => (err: Error) => {
-  console.log(typeof err);
   if (err instanceof pg.DatabaseError) {
     logPgError(err);
   } else {
