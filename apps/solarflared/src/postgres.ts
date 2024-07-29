@@ -153,11 +153,13 @@ export const selectAllWithRls = async (
     // empty array in that case.
 
     if (rlsColumn === false) {
-      const res = await client.query(`SELECT * FROM ${tableRef}`).catch(
-        handleQueryError({
-          msg: `Error selecting all rows from table ${asString(tableRef)}`,
-        })
-      );
+      const res = await client
+        .query(`SELECT * FROM ${asString(tableRef, { renderPublic: true })}`)
+        .catch(
+          handleQueryError({
+            msg: `Error selecting all rows from table ${asString(tableRef)}`,
+          })
+        );
       return res.rows;
     } else {
       const res = await client
