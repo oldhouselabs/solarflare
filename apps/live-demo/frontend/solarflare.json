@@ -1,0 +1,11 @@
+{
+  "tables": [
+    {
+      "ref": {
+        "name": "todos",
+        "schema": "public"
+      },
+      "rls": false
+    }
+  ]
+}

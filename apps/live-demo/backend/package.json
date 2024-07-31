@@ -1,0 +1,37 @@
+{
+  "name": "@repo/live-demo-be",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "dev": "tsup src/index.ts --watch --onSuccess 'node dist/index.js'",
+    "build": "kysely-codegen && tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/cors": "^2.8.17",
+    "@types/pg": "^8.11.6",
+    "kysely-codegen": "^0.15.0",
+    "kysely-ctl": "^0.9.0",
+    "tsup": "^8.2.3",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@solarflare/solarflared": "^0.18.0",
+    "@tanstack/react-query": "^4.36.1",
+    "@trpc/server": "^10.45.2",
+    "add": "^2.0.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "kysely": "^0.27.4",
+    "lexorank": "^1.0.5",
+    "pg": "^8.12.0",
+    "pnpm": "^9.6.0",
+    "zod": "^3.23.8"
+  }
+}

@@ -2,6 +2,7 @@
   "name": "solarflare",
   "private": true,
   "scripts": {
+    "serve:demo": "cd apps/live-demo && sh ./serve.sh",
     "build": "turbo build",
     "dev": "turbo dev",
     "lint": "turbo lint",
