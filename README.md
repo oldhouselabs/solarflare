@@ -101,7 +101,7 @@ Now, if a row is added, deleted or edited in Postgres, the `Todos` component wil
 1. Initialize Solarflare in your backend project:
 
    ```sh
-   solarflared init
+   solarflare init
    ```
 
    This command will interactively allow you to configure which tables you want to expose to your frontend, and ensures that your Postgres installation works with Solarflare. In particular, you need to have logical replication enabled with `wal_level = logical` in your `postgresql.conf` file (this requires a Postgres restart).
@@ -113,7 +113,7 @@ Now, if a row is added, deleted or edited in Postgres, the `Todos` component wil
 1. Run the Solarflare server:
 
    ```sh
-   solarflared start
+   solarflare start
    ```
 
    This will start the Solarflare server on `http://localhost:54321`. It reads the `solarflare.json` configuration file.
@@ -127,7 +127,7 @@ Now, if a row is added, deleted or edited in Postgres, the `Todos` component wil
 1. Generate types for your tables:
 
    ```sh
-   solarflared codegen
+   solarflare codegen
    ```
 
 1. Setup a `SolarflareProvider` in your React app.
