@@ -2,8 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import pluralize from "pluralize";
 import { z } from "zod";
+import pg from "pg";
 
-import { createClient, introspectTable } from "./postgres";
+import { createClient, introspectEnum, introspectTable } from "./postgres";
 import { loadManifest } from "./manifest";
 import { format } from "./zodErrors";
 import { TableRef, asString } from "@repo/protocol-types";
@@ -52,7 +53,7 @@ export const codegen = async () => {
   const generated = await Promise.all(
     manifest.tables.map(async (t) => {
       const table = await introspectTable(client, t.ref);
-      return codegenTypeForTable(t.ref, table);
+      return await codegenTypeForTable(client, t.ref, table);
     })
   );
 
@@ -96,17 +97,27 @@ const typeMappings: { [key: string]: string } = {
   uuid: "string",
   json: "Object",
   jsonb: "Object",
-};
+} as const;
 
-const codegenTypeForTable = (
+const codegenTypeForTable = async (
+  client: pg.Client,
   tableRef: TableRef,
   table: Awaited<ReturnType<typeof introspectTable>>
 ) => {
-  const fieldItems = table.$fields.map((row) => {
-    const tsType = typeMappings[row.data_type] || "any";
-    const isOptional = row.is_nullable === "YES" ? "?" : "";
-    return `    ${row.column_name}${isOptional}: ${tsType};`;
-  });
+  const fieldItems = await Promise.all(
+    table.$fields.map(async (row) => {
+      let typeDef: string;
+      if (row.data_type === "USER-DEFINED" && row.enum_type !== null) {
+        const names = await introspectEnum(client, row.enum_type);
+        typeDef = names.map((name) => `"${name}"`).join(" | ");
+      } else {
+        typeDef = typeMappings[row.data_type] || "any";
+      }
+
+      const isOptional = row.is_nullable === "YES" ? "?" : "";
+      return `    ${row.column_name}${isOptional}: ${typeDef};`;
+    })
+  );
 
   // TODO: now that we support multiple schemas, the interface names can conflict.
   // We need to explicitly check for this and have a mechanism to namespace by

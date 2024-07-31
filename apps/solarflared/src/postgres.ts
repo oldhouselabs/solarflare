@@ -205,10 +205,21 @@ export const introspectTables = async (
 
 export const introspectTable = async (client: pg.Client, ref: TableRef) => {
   const query = `
-      SELECT column_name, data_type, is_nullable
-      FROM information_schema.columns
-      WHERE table_name = $1
-      AND table_schema = $2
+      SELECT 
+          cols.column_name, 
+          cols.data_type, 
+          cols.is_nullable,
+          CASE 
+              WHEN cols.data_type = 'USER-DEFINED' THEN pg_type.typname 
+              ELSE NULL 
+          END AS enum_type
+      FROM 
+          information_schema.columns cols
+      LEFT JOIN 
+          pg_type ON pg_type.typname = cols.udt_name
+      WHERE 
+          cols.table_name = $1
+          AND cols.table_schema = $2;
     `;
 
   const columnData = await client
@@ -216,6 +227,7 @@ export const introspectTable = async (client: pg.Client, ref: TableRef) => {
       column_name: string;
       data_type: string;
       is_nullable: "YES" | "NO";
+      enum_type: string | null;
     }>(query, [ref.name, ref.schema])
     .catch(handleQueryError({ exit: true }));
   const primaryKey = await getPrimaryKey(client, ref);
@@ -226,6 +238,24 @@ export const introspectTable = async (client: pg.Client, ref: TableRef) => {
     },
     $fields: columnData.rows,
   };
+};
+
+/**
+ * Introspect the database to find all the enum values for a given enum type.
+ */
+export const introspectEnum = async (client: pg.Client, enumName: string) => {
+  const { rows } = await client.query<{
+    enumlabel: string;
+  }>(
+    `SELECT enumlabel
+      FROM pg_enum
+      JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+      WHERE pg_type.typname = $1
+      ORDER BY enumsortorder;`,
+    [enumName]
+  );
+
+  return rows.map((row) => row.enumlabel);
 };
 
 /**
