@@ -17,7 +17,7 @@ program
   .description(
     "The Solarflare daemon. Stream live updates of your Postgres data."
   )
-  .version("0.1.0");
+  .version(__SOLARFLARED_VERSION__);
 
 program.command("init").description("Initialize solarflared").action(init);
 program

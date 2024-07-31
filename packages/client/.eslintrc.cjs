@@ -6,5 +6,5 @@ module.exports = {
   parserOptions: {
     project: ["./tsconfig.json", "./tsconfig.test.json"],
   },
-  ignorePatterns: ["vitest.config.mts"],
+  ignorePatterns: ["vitest.config.mts", "post-build.js", "tsup.config.ts"],
 };

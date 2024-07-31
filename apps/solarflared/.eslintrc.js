@@ -6,5 +6,5 @@ module.exports = {
   parserOptions: {
     project: true,
   },
-  ignorePatterns: ["build.js"],
+  ignorePatterns: ["post-build.js"],
 };
